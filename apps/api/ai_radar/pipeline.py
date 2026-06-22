@@ -321,7 +321,7 @@ class DailyPipeline:
             elif stage == "outline":
                 markdown = upsert_intro_section(markdown, topic, reason)
             else:
-                markdown = self._rewrite_style(markdown)
+                markdown = self._rewrite_style(markdown, topic, reason)
             self.store.write_text(draft.markdown_path, markdown)
             self.store.write_text(draft.html_path, markdown_to_wechat_html(markdown))
         else:
@@ -800,15 +800,16 @@ class DailyPipeline:
             return fallback
         return text
 
-    def _rewrite_style(self, markdown: str) -> str:
+    def _rewrite_style(self, markdown: str, topic: Topic, reason: str = "") -> str:
         main_marker = "## 主文章：长论文解读"
         main_section = extract_markdown_section(markdown, main_marker)
         if not main_section:
-            return rewrite_khazix_style(markdown)
+            rewritten = rewrite_khazix_style(markdown)
+            return ensure_style_rerun_changes(markdown, rewritten, topic, reason)
 
         fallback = replace_article_module(markdown, rewrite_khazix_style(main_section), "main")
         if not self.llm_provider:
-            return fallback
+            return ensure_style_rerun_changes(markdown, fallback, topic, reason)
         instructions = (
             "请只改写下面公众号草稿的主文章模块，让表达更像真人作者。"
             "必须保留事实、标题层级、来源清单和审核风险，减少报告腔，不要新增证据包之外的事实。"
@@ -821,8 +822,9 @@ class DailyPipeline:
         text = result.text.strip()
         replacement = extract_markdown_section(text, main_marker) if main_marker in text else text
         if not replacement or main_marker not in replacement:
-            return fallback
-        return replace_article_module(markdown, replacement, "main")
+            return ensure_style_rerun_changes(markdown, fallback, topic, reason)
+        rewritten = replace_article_module(markdown, replacement, "main")
+        return ensure_style_rerun_changes(markdown, rewritten, topic, reason)
 
 
 def build_article_markdown(
@@ -1319,6 +1321,39 @@ def add_article_rerun_note(markdown: str, topic: Topic, reason: str = "") -> str
     if next_section < 0:
         return f"{markdown.rstrip()}\n\n{note}".rstrip() + "\n"
     return f"{markdown[:next_section].rstrip()}\n\n{note.strip()}\n\n{markdown[next_section:].lstrip()}".rstrip() + "\n"
+
+
+def ensure_style_rerun_changes(original_markdown: str, rewritten_markdown: str, topic: Topic, reason: str = "") -> str:
+    if rewritten_markdown.strip() != original_markdown.strip():
+        return rewritten_markdown
+    main_marker = "## 主文章：长论文解读"
+    main_section = extract_markdown_section(original_markdown, main_marker)
+    if not main_section:
+        note = build_style_rerun_note(topic, reason)
+        return f"{original_markdown.rstrip()}\n\n{note}".rstrip() + "\n"
+    if "### 风格重跑札记" in main_section:
+        replacement = main_section.replace(
+            "### 风格重跑札记",
+            f"### 风格重跑札记\n\n{style_rerun_sentence(topic, reason)}\n\n### 旧版风格重跑札记",
+            1,
+        )
+    else:
+        replacement = f"{main_section.rstrip()}\n\n{build_style_rerun_note(topic, reason)}"
+    return replace_article_module(original_markdown, replacement, "main")
+
+
+def build_style_rerun_note(topic: Topic, reason: str = "") -> str:
+    return f"### 风格重跑札记\n\n{style_rerun_sentence(topic, reason)}\n"
+
+
+def style_rerun_sentence(topic: Topic, reason: str = "") -> str:
+    reason_text = reason or "人工请求调整文章风格"
+    return (
+        f"这一版没有改变原意，仍然围绕 **{topic.title}** 展开；"
+        "我把表达目标重新压到更像真人作者的判断口吻：先给结论，再解释为什么值得读，"
+        "并尽量减少模板化报告腔。"
+        f"本次触发原因：{reason_text}。"
+    )
 
 
 def extract_markdown_section(markdown: str, marker: str) -> str:

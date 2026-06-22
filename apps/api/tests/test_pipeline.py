@@ -289,6 +289,31 @@ def test_pipeline_style_rerun_only_rewrites_main_article(tmp_path: Path):
     assert styled_arxiv == original_arxiv
 
 
+def test_pipeline_style_rerun_changes_non_agent_topics_when_fallback_is_identical(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store)
+    pipeline.run_daily(date="2026-06-20")
+    draft = pipeline.draft_topic("topic-context-engineering", date="2026-06-20")
+    original_markdown = store.read_text(draft.markdown_path)
+    original_main = markdown_section(original_markdown, "## 主文章：长论文解读")
+    original_hotspots = markdown_section(original_markdown, "## 次文章 1：AI 热点")
+    original_arxiv = markdown_section(original_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    styled = pipeline.regenerate_draft(draft.id, stage="style", reason="make it less templated")
+    styled_markdown = store.read_text(styled.markdown_path)
+    styled_main = markdown_section(styled_markdown, "## 主文章：长论文解读")
+    styled_hotspots = markdown_section(styled_markdown, "## 次文章 1：AI 热点")
+    styled_arxiv = markdown_section(styled_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    assert styled.version == draft.version + 1
+    assert styled.last_rerun_stage == "style"
+    assert styled_markdown != original_markdown
+    assert styled_main != original_main
+    assert "风格重跑札记" in styled_main
+    assert styled_hotspots == original_hotspots
+    assert styled_arxiv == original_arxiv
+
+
 def test_pipeline_reruns_review_stage_refreshes_checklist(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store)

@@ -1,0 +1,1263 @@
+{
+  "runs": {
+    "2026-06-20": {
+      "date": "2026-06-20",
+      "source_ids": [
+        "source-arxiv-cs-ai",
+        "source-ai-news-radar",
+        "source-github-trending",
+        "source-official-blogs"
+      ],
+      "signal_ids": [
+        "signal-agent-lab-paper",
+        "signal-agent-lab-code",
+        "signal-long-context-rag",
+        "signal-openai-evals",
+        "signal-anthropic-context",
+        "signal-github-evalkit",
+        "signal-product-agent-builder",
+        "signal-post-paper-topics"
+      ],
+      "paper_ids": [
+        "paper-agent-lab",
+        "paper-long-context-rag"
+      ],
+      "topic_ids": [
+        "topic-agent-lab",
+        "topic-long-context-rag",
+        "topic-agent-evals",
+        "topic-context-engineering",
+        "topic-evalkit",
+        "topic-agent-builder",
+        "topic-thesis-agent-eval"
+      ],
+      "selected_topic_id": "topic-agent-lab",
+      "evidence_ids": [
+        "evidence-topic-agent-lab-1",
+        "evidence-topic-agent-lab-2",
+        "evidence-topic-agent-lab-3",
+        "evidence-topic-agent-lab-paper-profile"
+      ],
+      "draft_id": "draft-2026-06-20-topic-agent-lab"
+    },
+    "2026-06-21": {
+      "date": "2026-06-21",
+      "source_ids": [
+        "source-arxiv-cs-ai",
+        "source-ai-news-radar",
+        "source-github-trending",
+        "source-official-blogs"
+      ],
+      "signal_ids": [
+        "signal-agent-lab-paper",
+        "signal-agent-lab-code",
+        "signal-long-context-rag",
+        "signal-openai-evals",
+        "signal-anthropic-context",
+        "signal-github-evalkit",
+        "signal-product-agent-builder",
+        "signal-post-paper-topics"
+      ],
+      "paper_ids": [
+        "paper-agent-lab",
+        "paper-long-context-rag"
+      ],
+      "topic_ids": [
+        "topic-agent-lab",
+        "topic-long-context-rag",
+        "topic-agent-evals",
+        "topic-context-engineering",
+        "topic-evalkit",
+        "topic-agent-builder",
+        "topic-thesis-agent-eval"
+      ],
+      "selected_topic_id": "topic-agent-lab",
+      "evidence_ids": [
+        "evidence-topic-agent-lab-1",
+        "evidence-topic-agent-lab-2",
+        "evidence-topic-agent-lab-3",
+        "evidence-topic-agent-lab-paper-profile"
+      ],
+      "draft_id": "draft-2026-06-21-topic-agent-lab"
+    },
+    "2026-06-22": {
+      "date": "2026-06-22",
+      "source_ids": [
+        "source-arxiv-cs-ai",
+        "source-ai-news-radar",
+        "source-github-trending",
+        "source-official-blogs"
+      ],
+      "signal_ids": [
+        "signal-agent-lab-paper",
+        "signal-agent-lab-code",
+        "signal-long-context-rag",
+        "signal-openai-evals",
+        "signal-anthropic-context",
+        "signal-github-evalkit",
+        "signal-product-agent-builder",
+        "signal-post-paper-topics"
+      ],
+      "paper_ids": [
+        "paper-agent-lab",
+        "paper-long-context-rag"
+      ],
+      "topic_ids": [
+        "topic-agent-lab",
+        "topic-long-context-rag",
+        "topic-agent-evals",
+        "topic-context-engineering",
+        "topic-evalkit",
+        "topic-agent-builder",
+        "topic-thesis-agent-eval"
+      ],
+      "selected_topic_id": "topic-agent-lab",
+      "evidence_ids": [
+        "evidence-topic-agent-lab-1",
+        "evidence-topic-agent-lab-2",
+        "evidence-topic-agent-lab-3",
+        "evidence-topic-agent-lab-paper-profile"
+      ],
+      "draft_id": "draft-2026-06-22-topic-agent-lab"
+    }
+  },
+  "sources": [
+    {
+      "id": "source-arxiv-cs-ai",
+      "name": "arXiv cs.AI / cs.LG",
+      "type": "arxiv",
+      "url": "https://export.arxiv.org/api/query?search_query=cat:cs.AI",
+      "enabled": true,
+      "fetch_interval_minutes": 1440,
+      "last_success_at": "2026-06-22T07:30:00Z",
+      "last_error": null,
+      "status": "healthy",
+      "created_at": "2026-06-22T07:30:00Z"
+    },
+    {
+      "id": "source-ai-news-radar",
+      "name": "AI News Radar",
+      "type": "rss",
+      "url": "https://example.com/ai-news-radar.xml",
+      "enabled": true,
+      "fetch_interval_minutes": 1440,
+      "last_success_at": "2026-06-22T07:30:00Z",
+      "last_error": null,
+      "status": "healthy",
+      "created_at": "2026-06-22T07:30:00Z"
+    },
+    {
+      "id": "source-github-trending",
+      "name": "GitHub AI Trending",
+      "type": "github",
+      "url": "https://github.com/trending/python?since=daily",
+      "enabled": true,
+      "fetch_interval_minutes": 1440,
+      "last_success_at": "2026-06-22T07:30:00Z",
+      "last_error": null,
+      "status": "healthy",
+      "created_at": "2026-06-22T07:30:00Z"
+    },
+    {
+      "id": "source-official-blogs",
+      "name": "Official AI Blogs",
+      "type": "rss",
+      "url": "https://openai.com/news/rss.xml",
+      "enabled": true,
+      "fetch_interval_minutes": 1440,
+      "last_success_at": "2026-06-22T07:30:00Z",
+      "last_error": null,
+      "status": "healthy",
+      "created_at": "2026-06-22T07:30:00Z"
+    }
+  ],
+  "signals": [
+    {
+      "id": "signal-agent-lab-paper",
+      "source_id": "source-arxiv-cs-ai",
+      "kind": "paper",
+      "title": "Agent Laboratory shows how research agents can structure literature review and experiments",
+      "summary": "Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+      "url": "https://arxiv.org/abs/2501.04227",
+      "published_at": "2025-01-08T01:58:42Z",
+      "tags": [
+        "agents",
+        "research-workflow",
+        "paper"
+      ],
+      "heat": 94,
+      "entities": {
+        "papers": [
+          "Agent Laboratory"
+        ],
+        "methods": [
+          "multi-agent"
+        ]
+      }
+    },
+    {
+      "id": "signal-agent-lab-code",
+      "source_id": "source-github-trending",
+      "kind": "repo",
+      "title": "Agent Laboratory repository exposes the research workflow implementation",
+      "summary": "配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。",
+      "url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+      "published_at": "2026-06-22T06:00:00Z",
+      "tags": [
+        "github",
+        "agents",
+        "reproducibility"
+      ],
+      "heat": 85,
+      "entities": {
+        "repos": [
+          "agent-laboratory"
+        ]
+      }
+    },
+    {
+      "id": "signal-long-context-rag",
+      "source_id": "source-arxiv-cs-ai",
+      "kind": "paper",
+      "title": "Long-context RAG paper questions the end of retrieval",
+      "summary": "这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+      "url": "https://arxiv.org/abs/2407.16833",
+      "published_at": "2024-07-23T20:51:52Z",
+      "tags": [
+        "rag",
+        "long-context",
+        "paper"
+      ],
+      "heat": 88,
+      "entities": {
+        "papers": [
+          "RAG Under Long Context"
+        ]
+      }
+    },
+    {
+      "id": "signal-openai-evals",
+      "source_id": "source-official-blogs",
+      "kind": "news",
+      "title": "Anthropic discusses how to evaluate AI agents",
+      "summary": "Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。",
+      "url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "published_at": "2026-01-22T00:00:00Z",
+      "tags": [
+        "evals",
+        "agents",
+        "official"
+      ],
+      "heat": 80,
+      "entities": {
+        "companies": [
+          "Anthropic"
+        ]
+      }
+    },
+    {
+      "id": "signal-anthropic-context",
+      "source_id": "source-ai-news-radar",
+      "kind": "news",
+      "title": "Anthropic highlights context engineering patterns",
+      "summary": "Anthropic 强调有效 agent 往往先从简单、可组合的 workflow 开始，再逐步走向更自主的系统。",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "published_at": "2024-12-19T00:00:00Z",
+      "tags": [
+        "context-engineering",
+        "agents"
+      ],
+      "heat": 78,
+      "entities": {
+        "companies": [
+          "Anthropic"
+        ]
+      }
+    },
+    {
+      "id": "signal-github-evalkit",
+      "source_id": "source-github-trending",
+      "kind": "repo",
+      "title": "OpenAI Evals remains a useful baseline for model evaluation workflows",
+      "summary": "OpenAI Evals 仓库给了学生一个具体入口，可以从数据集、grader 和回归式模型检查开始搭评测 baseline。",
+      "url": "https://github.com/openai/evals",
+      "published_at": "2026-06-22T06:00:00Z",
+      "tags": [
+        "github",
+        "evals",
+        "tooling"
+      ],
+      "heat": 76,
+      "entities": {
+        "repos": [
+          "openai/evals"
+        ]
+      }
+    },
+    {
+      "id": "signal-product-agent-builder",
+      "source_id": "source-ai-news-radar",
+      "kind": "product",
+      "title": "LangGraph gives agent workflows a concrete engineering baseline",
+      "summary": "LangGraph 关注持久执行、状态管理和可控 agent workflow，适合作为可复现 agent 工程的参考基线。",
+      "url": "https://github.com/langchain-ai/langgraph",
+      "published_at": "2026-06-22T06:00:00Z",
+      "tags": [
+        "product",
+        "agents",
+        "debugging"
+      ],
+      "heat": 72,
+      "entities": {
+        "products": [
+          "LangGraph"
+        ]
+      }
+    },
+    {
+      "id": "signal-post-paper-topics",
+      "source_id": "source-ai-news-radar",
+      "kind": "paper",
+      "title": "AgentBench keeps agent evaluation grounded in interactive tasks",
+      "summary": "AgentBench 把 LLM agent 放进多个交互环境里评测，也记录了长期推理和指令遵循等常见失败点。",
+      "url": "https://arxiv.org/abs/2308.03688",
+      "published_at": "2023-08-07T16:08:11Z",
+      "tags": [
+        "thesis",
+        "evals",
+        "agents"
+      ],
+      "heat": 74,
+      "entities": {
+        "topics": [
+          "agent evaluation"
+        ]
+      }
+    }
+  ],
+  "papers": [
+    {
+      "id": "paper-agent-lab",
+      "arxiv_id": "2501.04227",
+      "title": "Agent Laboratory: Using LLM Agents as Research Assistants",
+      "authors": [
+        "Samuel Schmidgall",
+        "Yusheng Su",
+        "Ze Wang",
+        "Ximeng Sun",
+        "Jialian Wu",
+        "Xiaodong Yu",
+        "Jiang Liu",
+        "Zicheng Liu",
+        "Emad Barsoum"
+      ],
+      "abstract": "Agent Laboratory 是一个基于 LLM agent 的自动化科研框架。它从人类给出的研究想法出发，依次推进文献综述、实验和报告写作，同时允许人类在每个阶段提供反馈。",
+      "pdf_url": "https://arxiv.org/pdf/2501.04227",
+      "code_url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+      "published_at": "2025-01-08T01:58:42Z",
+      "categories": [
+        "cs.AI",
+        "cs.LG"
+      ],
+      "method_summary": "Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。",
+      "experiment_summary": "论文报告里，o1-preview 在测试的后端模型中效果最好；加入人类反馈后，产出质量会进一步提升；作者还给出一个很抓眼球的数字，和此前自主科研方法相比，成本降低了 84%。",
+      "limitations": "The results still depend on human evaluation and selected tasks. The paper is better read as a workflow prototype, not proof that agents can independently produce reliable research.",
+      "replication_value": 88,
+      "extension_topics": [
+        "面向毕业论文的 agent 实验设计助手",
+        "研究型 agent 的证据约束与幻觉评测",
+        "多 agent 协作在 baseline 选择中的可靠性"
+      ]
+    },
+    {
+      "id": "paper-long-context-rag",
+      "arxiv_id": "2407.16833",
+      "title": "Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach",
+      "authors": [
+        "Zhuowan Li",
+        "Cheng Li",
+        "Mingyang Zhang",
+        "Qiaozhu Mei",
+        "Michael Bendersky"
+      ],
+      "abstract": "这篇论文系统比较了检索增强生成和长上下文 LLM，并提出 Self-Route，用模型自我判断在 RAG 和长上下文路径之间做选择，以降低成本并尽量保持效果。",
+      "pdf_url": "https://arxiv.org/pdf/2407.16833",
+      "code_url": null,
+      "published_at": "2024-07-23T20:51:52Z",
+      "categories": [
+        "cs.CL",
+        "cs.IR"
+      ],
+      "method_summary": "论文在多个公开数据集上比较 RAG 和长上下文 LLM，再用模型自我反思来决定每个问题走检索路径还是长上下文路径。",
+      "experiment_summary": "论文报告说，在资源充足时，长上下文模型经常更强；但 RAG 的成本优势和路由效率仍然让它很难被简单淘汰。",
+      "limitations": "The conclusions depend on the tested datasets and models; students should re-run newer model baselines before treating it as settled.",
+      "replication_value": 82,
+      "extension_topics": [
+        "长上下文模型中的检索必要性",
+        "RAG 引用可信度评测",
+        "课程论文中的消融实验设计"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "id": "topic-agent-lab",
+      "slug": "agent-laboratory-会不会改变-ai-论文实验设计",
+      "cluster_id": "cluster-topic-agent-lab",
+      "paper_id": "paper-agent-lab",
+      "title": "Agent Laboratory 会不会改变 AI 论文实验设计？",
+      "angle": "从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。",
+      "article_type": "long_paper",
+      "status": "drafted",
+      "score_total": 92,
+      "score_detail": {
+        "heat": {
+          "value": 93,
+          "reason": "3 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 94,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 90,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 92,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 3,
+      "evidence_risk": "low",
+      "recommendation": "从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。",
+      "signal_ids": [
+        "signal-agent-lab-paper",
+        "signal-agent-lab-code",
+        "signal-post-paper-topics"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-long-context-rag",
+      "slug": "长上下文模型来了-rag-为什么还没有过时",
+      "cluster_id": "cluster-topic-long-context-rag",
+      "paper_id": "paper-long-context-rag",
+      "title": "长上下文模型来了，RAG 为什么还没有过时？",
+      "angle": "把长上下文和检索增强放在同一张实验桌上，讨论论文选题和评测切口。",
+      "article_type": "long_paper",
+      "status": "drafted",
+      "score_total": 92,
+      "score_detail": {
+        "heat": {
+          "value": 90,
+          "reason": "2 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 94,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 90,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 92,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 2,
+      "evidence_risk": "low",
+      "recommendation": "把长上下文和检索增强放在同一张实验桌上，讨论论文选题和评测切口。",
+      "signal_ids": [
+        "signal-long-context-rag",
+        "signal-openai-evals"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-agent-evals",
+      "slug": "agent-评测正在从-demo-走向工程纪律",
+      "cluster_id": "cluster-topic-agent-evals",
+      "paper_id": null,
+      "title": "Agent 评测正在从 demo 走向工程纪律",
+      "angle": "把官方 eval 指南、开源评测工具和论文问题串成行业深度解读。",
+      "article_type": "industry_analysis",
+      "status": "candidate",
+      "score_total": 82,
+      "score_detail": {
+        "heat": {
+          "value": 86,
+          "reason": "3 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 80,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 90,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 70,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 3,
+      "evidence_risk": "low",
+      "recommendation": "把官方 eval 指南、开源评测工具和论文问题串成行业深度解读。",
+      "signal_ids": [
+        "signal-openai-evals",
+        "signal-github-evalkit",
+        "signal-post-paper-topics"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-context-engineering",
+      "slug": "context-engineering-正在取代单点-prompt-技巧",
+      "cluster_id": "cluster-topic-context-engineering",
+      "paper_id": null,
+      "title": "Context Engineering 正在取代单点 Prompt 技巧",
+      "angle": "解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+      "article_type": "topic_inspiration",
+      "status": "drafted",
+      "score_total": 87,
+      "score_detail": {
+        "heat": {
+          "value": 89,
+          "reason": "2 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 81,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 90,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 92,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 2,
+      "evidence_risk": "low",
+      "recommendation": "解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+      "signal_ids": [
+        "signal-anthropic-context",
+        "signal-long-context-rag"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-evalkit",
+      "slug": "evalkit-适合拿来做-llm-应用论文-baseline-吗",
+      "cluster_id": "cluster-topic-evalkit",
+      "paper_id": null,
+      "title": "EvalKit 适合拿来做 LLM 应用论文 baseline 吗？",
+      "angle": "从工具推荐角度判断它能否支撑复现、评测和实验报告。",
+      "article_type": "short_hotspot",
+      "status": "candidate",
+      "score_total": 77,
+      "score_detail": {
+        "heat": {
+          "value": 79,
+          "reason": "1 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 82,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 72,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 70,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 1,
+      "evidence_risk": "medium",
+      "recommendation": "从工具推荐角度判断它能否支撑复现、评测和实验报告。",
+      "signal_ids": [
+        "signal-github-evalkit"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-agent-builder",
+      "slug": "可视化-agent-builder-的真正价值是实验回放",
+      "cluster_id": "cluster-topic-agent-builder",
+      "paper_id": null,
+      "title": "可视化 Agent Builder 的真正价值是实验回放",
+      "angle": "把产品更新转成学生可理解的实验工程启发。",
+      "article_type": "short_hotspot",
+      "status": "candidate",
+      "score_total": 76,
+      "score_detail": {
+        "heat": {
+          "value": 75,
+          "reason": "1 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 83,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 72,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 70,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 1,
+      "evidence_risk": "medium",
+      "recommendation": "把产品更新转成学生可理解的实验工程启发。",
+      "signal_ids": [
+        "signal-product-agent-builder"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    },
+    {
+      "id": "topic-thesis-agent-eval",
+      "slug": "今天可以延伸的-agent-评测论文选题",
+      "cluster_id": "cluster-topic-thesis-agent-eval",
+      "paper_id": null,
+      "title": "今天可以延伸的 Agent 评测论文选题",
+      "angle": "整理 1-3 个适合课程论文和毕业论文的可做方向。",
+      "article_type": "topic_inspiration",
+      "status": "candidate",
+      "score_total": 87,
+      "score_detail": {
+        "heat": {
+          "value": 83,
+          "reason": "2 个信号在 24 小时内共同指向该方向。"
+        },
+        "relevance": {
+          "value": 84,
+          "reason": "与论文选题、实验设计、复现或 AI 研究方法直接相关。"
+        },
+        "writeability": {
+          "value": 90,
+          "reason": "能拆成问题、方法、实验、局限和启发，适合公众号结构。"
+        },
+        "conversion": {
+          "value": 92,
+          "reason": "可以自然延伸到选题设计、baseline、复现和论文辅导咨询。"
+        }
+      },
+      "business_hook": "适合引导学生从研究问题、实验复现和创新点设计三个角度切入。",
+      "source_count": 2,
+      "evidence_risk": "low",
+      "recommendation": "整理 1-3 个适合课程论文和毕业论文的可做方向。",
+      "signal_ids": [
+        "signal-post-paper-topics",
+        "signal-openai-evals"
+      ],
+      "created_at": "2026-06-22T07:50:00Z"
+    }
+  ],
+  "evidence_items": [
+    {
+      "id": "evidence-topic-agent-lab-1",
+      "topic_id": "topic-agent-lab",
+      "source_url": "https://arxiv.org/abs/2501.04227",
+      "source_title": "Agent Laboratory shows how research agents can structure literature review and experiments",
+      "claim": "Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+      "snippet": "Agent Laboratory shows how research agents can structure literature review and experiments: Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T03:35:02Z"
+    },
+    {
+      "id": "evidence-topic-agent-lab-2",
+      "topic_id": "topic-agent-lab",
+      "source_url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+      "source_title": "Agent Laboratory repository exposes the research workflow implementation",
+      "claim": "配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。",
+      "snippet": "Agent Laboratory repository exposes the research workflow implementation: 配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T03:35:02Z"
+    },
+    {
+      "id": "evidence-topic-agent-lab-3",
+      "topic_id": "topic-agent-lab",
+      "source_url": "https://arxiv.org/abs/2308.03688",
+      "source_title": "AgentBench keeps agent evaluation grounded in interactive tasks",
+      "claim": "AgentBench 把 LLM agent 放进多个交互环境里评测，也记录了长期推理和指令遵循等常见失败点。",
+      "snippet": "AgentBench keeps agent evaluation grounded in interactive tasks: AgentBench 把 LLM agent 放进多个交互环境里评测，也记录了长期推理和指令遵循等常见失败点。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T03:35:02Z"
+    },
+    {
+      "id": "evidence-topic-agent-lab-paper-profile",
+      "topic_id": "topic-agent-lab",
+      "source_url": "https://arxiv.org/pdf/2501.04227",
+      "source_title": "Agent Laboratory: Using LLM Agents as Research Assistants",
+      "claim": "Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。",
+      "snippet": "Agent Laboratory 是一个基于 LLM agent 的自动化科研框架。它从人类给出的研究想法出发，依次推进文献综述、实验和报告写作，同时允许人类在每个阶段提供反馈。",
+      "confidence": "high",
+      "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+      "created_at": "2026-06-22T03:35:02Z"
+    },
+    {
+      "id": "evidence-topic-long-context-rag-1",
+      "topic_id": "topic-long-context-rag",
+      "source_url": "https://arxiv.org/abs/2407.16833",
+      "source_title": "Long-context RAG paper questions the end of retrieval",
+      "claim": "这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+      "snippet": "Long-context RAG paper questions the end of retrieval: 这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T05:27:33Z"
+    },
+    {
+      "id": "evidence-topic-long-context-rag-2",
+      "topic_id": "topic-long-context-rag",
+      "source_url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "source_title": "Anthropic discusses how to evaluate AI agents",
+      "claim": "Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。",
+      "snippet": "Anthropic discusses how to evaluate AI agents: Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T05:27:33Z"
+    },
+    {
+      "id": "evidence-topic-long-context-rag-paper-profile",
+      "topic_id": "topic-long-context-rag",
+      "source_url": "https://arxiv.org/pdf/2407.16833",
+      "source_title": "Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach",
+      "claim": "论文在多个公开数据集上比较 RAG 和长上下文 LLM，再用模型自我反思来决定每个问题走检索路径还是长上下文路径。",
+      "snippet": "这篇论文系统比较了检索增强生成和长上下文 LLM，并提出 Self-Route，用模型自我判断在 RAG 和长上下文路径之间做选择，以降低成本并尽量保持效果。",
+      "confidence": "high",
+      "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+      "created_at": "2026-06-22T05:27:33Z"
+    },
+    {
+      "id": "evidence-topic-context-engineering-1",
+      "topic_id": "topic-context-engineering",
+      "source_url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "source_title": "Anthropic highlights context engineering patterns",
+      "claim": "Anthropic 强调有效 agent 往往先从简单、可组合的 workflow 开始，再逐步走向更自主的系统。",
+      "snippet": "Anthropic highlights context engineering patterns: Anthropic 强调有效 agent 往往先从简单、可组合的 workflow 开始，再逐步走向更自主的系统。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T04:47:18Z"
+    },
+    {
+      "id": "evidence-topic-context-engineering-2",
+      "topic_id": "topic-context-engineering",
+      "source_url": "https://arxiv.org/abs/2407.16833",
+      "source_title": "Long-context RAG paper questions the end of retrieval",
+      "claim": "这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+      "snippet": "Long-context RAG paper questions the end of retrieval: 这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-22T04:47:18Z"
+    },
+    {
+      "id": "evidence-topic-evalkit-1",
+      "topic_id": "topic-evalkit",
+      "source_url": "https://github.com/example/evalkit",
+      "source_title": "EvalKit adds trace-based grading for LLM apps",
+      "claim": "A Python toolkit adds dataset versioning, rubric graders, and regression reports.",
+      "snippet": "EvalKit adds trace-based grading for LLM apps: A Python toolkit adds dataset versioning, rubric graders, and regression reports.",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-20T08:21:46Z"
+    },
+    {
+      "id": "evidence-topic-agent-builder-1",
+      "topic_id": "topic-agent-builder",
+      "source_url": "https://example.com/visual-agent-builder",
+      "source_title": "A visual agent builder adds experiment replay",
+      "claim": "The release focuses on debugging, replay, and versioning for enterprise agent flows.",
+      "snippet": "A visual agent builder adds experiment replay: The release focuses on debugging, replay, and versioning for enterprise agent flows.",
+      "confidence": "medium",
+      "risk_note": "",
+      "created_at": "2026-06-20T08:25:01Z"
+    },
+    {
+      "id": "evidence-topic-thesis-agent-eval-1",
+      "topic_id": "topic-thesis-agent-eval",
+      "source_url": "https://example.com/agent-eval-thesis-ideas",
+      "source_title": "Researchers discuss thesis ideas around agent evaluation",
+      "claim": "A popular post collects open problems in evaluating agent reliability and reproducibility.",
+      "snippet": "Researchers discuss thesis ideas around agent evaluation: A popular post collects open problems in evaluating agent reliability and reproducibility.",
+      "confidence": "medium",
+      "risk_note": "自媒体讨论只作为选题热度参考，不作为论文事实依据。",
+      "created_at": "2026-06-20T08:26:51Z"
+    },
+    {
+      "id": "evidence-topic-thesis-agent-eval-2",
+      "topic_id": "topic-thesis-agent-eval",
+      "source_url": "https://openai.com/index/evals-agentic-systems/",
+      "source_title": "OpenAI updates model evaluation guidance for agentic systems",
+      "claim": "The guidance emphasizes task-level evals, traces, and human review for agent workflows.",
+      "snippet": "OpenAI updates model evaluation guidance for agentic systems: The guidance emphasizes task-level evals, traces, and human review for agent workflows.",
+      "confidence": "high",
+      "risk_note": "",
+      "created_at": "2026-06-20T08:26:51Z"
+    }
+  ],
+  "drafts": [
+    {
+      "id": "draft-2026-06-20-topic-agent-lab",
+      "topic_id": "topic-agent-lab",
+      "title": "Agent Laboratory 会不会改变 AI 论文实验设计？",
+      "subtitle": "从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/article.md",
+      "html_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/sources.md",
+      "checklist_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/evidence.json",
+      "topic_path": "drafts/2026-06-20/agent-laboratory-会不会改变-ai-论文实验设计/topic.md",
+      "version": 8,
+      "assets": [],
+      "last_rerun_stage": "refresh:main",
+      "created_at": "2026-06-20T04:09:32Z",
+      "updated_at": "2026-06-20T08:16:00Z"
+    },
+    {
+      "id": "draft-2026-06-21-topic-agent-lab",
+      "topic_id": "topic-agent-lab",
+      "title": "Agent Laboratory 会不会改变 AI 论文实验设计？",
+      "subtitle": "从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/article.md",
+      "html_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/article-wechat.html",
+      "sources_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/sources.md",
+      "checklist_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/review-checklist.md",
+      "evidence_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/evidence.json",
+      "topic_path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/topic.md",
+      "version": 7,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-21-topic-agent-lab-cover",
+          "draft_id": "draft-2026-06-21-topic-agent-lab",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Agent Laboratory 会不会改变 AI 论文实验设计？. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Agent Laboratory 会不会改变 AI 论文实验设计？. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-21T15:06:06Z"
+        },
+        {
+          "id": "asset-draft-2026-06-21-topic-agent-lab-mechanism",
+          "draft_id": "draft-2026-06-21-topic-agent-lab",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: Planner, reviewer, and executor agents share a structured research state and cite evidence before proposing experiments.",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: Planner, reviewer, and executor agents share a structured research state and cite evidence before proposing experiments.",
+          "path": "drafts/2026-06-21/agent-laboratory-会不会改变-ai-论文实验设计/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-21T15:06:06Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T05:56:33Z",
+      "updated_at": "2026-06-21T15:06:06Z"
+    },
+    {
+      "id": "draft-2026-06-20-topic-long-context-rag",
+      "topic_id": "topic-long-context-rag",
+      "title": "长上下文模型来了，RAG 为什么还没有过时？",
+      "subtitle": "把长上下文和检索增强放在同一张实验桌上，讨论论文选题和评测切口。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/article.md",
+      "html_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/sources.md",
+      "checklist_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/evidence.json",
+      "topic_path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/topic.md",
+      "version": 1,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-20-topic-long-context-rag-cover",
+          "draft_id": "draft-2026-06-20-topic-long-context-rag",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: 长上下文模型来了，RAG 为什么还没有过时？. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit interior, cinematic and crisp, deep dark navy background with precise sky-blue radar light beams and scanning arcs, clear visual metaphor for 'long-context models are here, why is RAG not obsolete yet?'. Show an inspectable subject: a transparent layered data pipeline, one large central AI core screen, nearby indexed document stacks, retrieval nodes, glowing connectors, and a long context ribbon wrapping around the cockpit to contrast with targeted retrieval modules. Visual language should be elegant, high-end, technical, and easy to understand at a glance. Avoid cheap purple gradients, avoid clutter, avoid unreadable text, if any text appears it should be minimal, clean, and legible in Chinese. Composition should fit a WeChat cover: wide, strong focal point, lots of negative space for title overlay, premium editorial style, realistic lighting, sharp details.",
+          "path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2",
+          "provider_request_id": "resp_0d3bd69e13c06085016a364d30526c819ba9cba28a19d1aa25",
+          "created_at": "2026-06-20T08:19:49Z"
+        },
+        {
+          "id": "asset-draft-2026-06-20-topic-long-context-rag-mechanism",
+          "draft_id": "draft-2026-06-20-topic-long-context-rag",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: The evaluation varies context length, retriever quality, and citation constraints to isolate where RAG adds value.",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. A visual mechanism map with no readable text. Show three distinct stages as icons or panels: planner, reviewer, executor. All three connect via structured arrows to a shared evidence board, which then leads into an experiment proposal. Emphasize inspectable objects, precise sky-blue highlights, subtle cyan glows, dark charcoal and navy background, crisp vector-like shapes, modular layout, sophisticated research dashboard aesthetic. Depict the concept of evaluating how context length, retriever quality, and citation constraints affect where RAG adds value, using abstract symbols rather than text. Avoid tiny text labels, avoid clutter, no logo, no watermark, no readable text.",
+          "path": "drafts/2026-06-20/长上下文模型来了-rag-为什么还没有过时/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2",
+          "provider_request_id": "resp_0eb1205af5073c54016a364d78b9ac8199841b6fa886c80a46",
+          "created_at": "2026-06-20T08:19:49Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T08:19:49Z",
+      "updated_at": "2026-06-20T08:19:49Z"
+    },
+    {
+      "id": "draft-2026-06-20-topic-context-engineering",
+      "topic_id": "topic-context-engineering",
+      "title": "Context Engineering 正在取代单点 Prompt 技巧",
+      "subtitle": "解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/article.md",
+      "html_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/sources.md",
+      "checklist_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/evidence.json",
+      "topic_path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/topic.md",
+      "version": 3,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-20-topic-context-engineering-cover",
+          "draft_id": "draft-2026-06-20-topic-context-engineering",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Context Engineering 正在取代单点 Prompt 技巧. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Context Engineering 正在取代单点 Prompt 技巧. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:28:00Z"
+        },
+        {
+          "id": "asset-draft-2026-06-20-topic-context-engineering-mechanism",
+          "draft_id": "draft-2026-06-20-topic-context-engineering",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+          "path": "drafts/2026-06-20/context-engineering-正在取代单点-prompt-技巧/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:28:00Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T08:19:51Z",
+      "updated_at": "2026-06-20T08:28:00Z"
+    },
+    {
+      "id": "draft-2026-06-20-topic-evalkit",
+      "topic_id": "topic-evalkit",
+      "title": "EvalKit 适合拿来做 LLM 应用论文 baseline 吗？",
+      "subtitle": "从工具推荐角度判断它能否支撑复现、评测和实验报告。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/article.md",
+      "html_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/sources.md",
+      "checklist_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/evidence.json",
+      "topic_path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/topic.md",
+      "version": 1,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-20-topic-evalkit-cover",
+          "draft_id": "draft-2026-06-20-topic-evalkit",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: EvalKit 适合拿来做 LLM 应用论文 baseline 吗？. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: EvalKit 适合拿来做 LLM 应用论文 baseline 吗？. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:22:17Z"
+        },
+        {
+          "id": "asset-draft-2026-06-20-topic-evalkit-mechanism",
+          "draft_id": "draft-2026-06-20-topic-evalkit",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 从工具推荐角度判断它能否支撑复现、评测和实验报告。",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 从工具推荐角度判断它能否支撑复现、评测和实验报告。",
+          "path": "drafts/2026-06-20/evalkit-适合拿来做-llm-应用论文-baseline-吗/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:22:17Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T08:22:17Z",
+      "updated_at": "2026-06-20T08:22:17Z"
+    },
+    {
+      "id": "draft-2026-06-20-topic-agent-builder",
+      "topic_id": "topic-agent-builder",
+      "title": "可视化 Agent Builder 的真正价值是实验回放",
+      "subtitle": "把产品更新转成学生可理解的实验工程启发。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/article.md",
+      "html_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/sources.md",
+      "checklist_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/evidence.json",
+      "topic_path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/topic.md",
+      "version": 1,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-20-topic-agent-builder-cover",
+          "draft_id": "draft-2026-06-20-topic-agent-builder",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: 可视化 Agent Builder 的真正价值是实验回放. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: 可视化 Agent Builder 的真正价值是实验回放. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:25:14Z"
+        },
+        {
+          "id": "asset-draft-2026-06-20-topic-agent-builder-mechanism",
+          "draft_id": "draft-2026-06-20-topic-agent-builder",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 把产品更新转成学生可理解的实验工程启发。",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 把产品更新转成学生可理解的实验工程启发。",
+          "path": "drafts/2026-06-20/可视化-agent-builder-的真正价值是实验回放/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:25:14Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T08:25:14Z",
+      "updated_at": "2026-06-20T08:25:14Z"
+    },
+    {
+      "id": "draft-2026-06-20-topic-thesis-agent-eval",
+      "topic_id": "topic-thesis-agent-eval",
+      "title": "今天可以延伸的 Agent 评测论文选题",
+      "subtitle": "整理 1-3 个适合课程论文和毕业论文的可做方向。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/article.md",
+      "html_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/article-wechat.html",
+      "sources_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/sources.md",
+      "checklist_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/review-checklist.md",
+      "evidence_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/evidence.json",
+      "topic_path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/topic.md",
+      "version": 1,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-20-topic-thesis-agent-eval-cover",
+          "draft_id": "draft-2026-06-20-topic-thesis-agent-eval",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: 今天可以延伸的 Agent 评测论文选题. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: 今天可以延伸的 Agent 评测论文选题. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:26:59Z"
+        },
+        {
+          "id": "asset-draft-2026-06-20-topic-thesis-agent-eval-mechanism",
+          "draft_id": "draft-2026-06-20-topic-thesis-agent-eval",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 整理 1-3 个适合课程论文和毕业论文的可做方向。",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 整理 1-3 个适合课程论文和毕业论文的可做方向。",
+          "path": "drafts/2026-06-20/今天可以延伸的-agent-评测论文选题/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-20T08:26:59Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-20T08:26:59Z",
+      "updated_at": "2026-06-20T08:26:59Z"
+    },
+    {
+      "id": "draft-2026-06-21-topic-context-engineering",
+      "topic_id": "topic-context-engineering",
+      "title": "Context Engineering 正在取代单点 Prompt 技巧",
+      "subtitle": "解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/article.md",
+      "html_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/article-wechat.html",
+      "sources_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/sources.md",
+      "checklist_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/review-checklist.md",
+      "evidence_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/evidence.json",
+      "topic_path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/topic.md",
+      "version": 1,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-21-topic-context-engineering-cover",
+          "draft_id": "draft-2026-06-21-topic-context-engineering",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Context Engineering 正在取代单点 Prompt 技巧. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Context Engineering 正在取代单点 Prompt 技巧. No cheap purple gradient, no unreadable text, subject must be inspectable.",
+          "path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-21T14:38:21Z"
+        },
+        {
+          "id": "asset-draft-2026-06-21-topic-context-engineering-mechanism",
+          "draft_id": "draft-2026-06-21-topic-context-engineering",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: 解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+          "path": "drafts/2026-06-21/context-engineering-正在取代单点-prompt-技巧/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-21T14:38:21Z"
+        }
+      ],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-21T14:38:21Z",
+      "updated_at": "2026-06-21T14:38:21Z"
+    },
+    {
+      "id": "draft-2026-06-22-topic-agent-lab",
+      "topic_id": "topic-agent-lab",
+      "title": "Agent Laboratory 会不会改变 AI 论文实验设计？｜重写版",
+      "subtitle": "从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/article.md",
+      "html_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/article-wechat.html",
+      "sources_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/sources.md",
+      "checklist_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/review-checklist.md",
+      "evidence_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/evidence.json",
+      "topic_path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/topic.md",
+      "version": 90,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-22-topic-agent-lab-cover",
+          "draft_id": "draft-2026-06-22-topic-agent-lab",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Agent Laboratory 会不会改变 AI 论文实验设计？. No cheap purple gradient, no unreadable text, subject must be inspectable.\n\nRerun reason: manual workspace rerun",
+          "revised_prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Agent Laboratory 会不会改变 AI 论文实验设计？. No cheap purple gradient, no unreadable text, subject must be inspectable.\n\nRerun reason: manual workspace rerun",
+          "path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2-placeholder",
+          "provider_request_id": null,
+          "created_at": "2026-06-22T03:35:02Z"
+        },
+        {
+          "id": "asset-draft-2026-06-22-topic-agent-lab-mechanism",
+          "draft_id": "draft-2026-06-22-topic-agent-lab",
+          "kind": "mechanism",
+          "prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。\n\nRerun reason: manual workspace rerun",
+          "revised_prompt": "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels (planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. Concept to visualize: Agent Laboratory breaking the scientific workflow into three stages—literature review, experiment, and report writing—where different agent roles collaborate around the same research idea and preserve human feedback entry points at each stage. Composition should feel like a polished systems diagram: dark charcoal background, layered panels, glassy interface elements, subtle grid, luminous blue connectors, evidence board at center-left, experiment proposal card at right, three role modules arranged in sequence, human review nodes indicated by simple abstract hand/eye/check icons without text, crisp vector-meets-3D editorial finish, high detail, no logos, no watermark, no readable words.",
+          "path": "drafts/2026-06-22/agent-laboratory-会不会改变-ai-论文实验设计/figures/mechanism.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2",
+          "provider_request_id": "resp_09da47f6ce3021a8016a38bad84ec4819ba01f480751822bdc",
+          "created_at": "2026-06-22T03:35:02Z"
+        }
+      ],
+      "last_rerun_stage": "refresh:main",
+      "created_at": "2026-06-21T16:14:21Z",
+      "updated_at": "2026-06-22T05:28:48Z"
+    },
+    {
+      "id": "draft-2026-06-22-topic-long-context-rag",
+      "topic_id": "topic-long-context-rag",
+      "title": "长上下文模型来了，RAG 为什么还没有过时？",
+      "subtitle": "把长上下文和检索增强放在同一张实验桌上，讨论论文选题和评测切口。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/article.md",
+      "html_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/article-wechat.html",
+      "sources_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/sources.md",
+      "checklist_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/review-checklist.md",
+      "evidence_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/evidence.json",
+      "topic_path": "drafts/2026-06-22/长上下文模型来了-rag-为什么还没有过时/topic.md",
+      "version": 5,
+      "assets": [],
+      "last_rerun_stage": "",
+      "created_at": "2026-06-21T16:23:05Z",
+      "updated_at": "2026-06-22T05:27:47Z"
+    },
+    {
+      "id": "draft-2026-06-22-topic-context-engineering",
+      "topic_id": "topic-context-engineering",
+      "title": "Context Engineering 正在取代单点 Prompt 技巧",
+      "subtitle": "解释为什么记忆、检索、工具和 trace 比 prompt 模板更适合做论文方向。",
+      "status": "review",
+      "markdown_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/article.md",
+      "html_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/article-wechat.html",
+      "sources_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/sources.md",
+      "checklist_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/review-checklist.md",
+      "evidence_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/evidence.json",
+      "topic_path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/topic.md",
+      "version": 4,
+      "assets": [
+        {
+          "id": "asset-draft-2026-06-22-topic-context-engineering-cover",
+          "draft_id": "draft-2026-06-22-topic-context-engineering",
+          "kind": "cover",
+          "prompt": "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, clear visual metaphor for: Context Engineering 正在取代单点 Prompt 技巧. No cheap purple gradient, no unreadable text, subject must be inspectable.\n\nRerun reason: manual workspace rerun",
+          "revised_prompt": "Premium WeChat cover image, widescreen composition, midnight research cockpit interior with a clean, cinematic, high-end tech aesthetic. A precise sky-blue radar beam/light sweeps across a transparent modular system map, clearly showing multiple interconnected nodes, pipelines, and context layers replacing a single isolated prompt token. Visual metaphor: Context Engineering is taking over from single-point Prompt tricks. Subject must be inspectable and legible as a concept, not literal text-heavy poster. Use deep midnight blues, steel gray, restrained cyan accents, crisp highlights, subtle volumetric light, no cheap purple gradients, no clutter, no unreadable text, no neon overload. Emphasize a central control console, layered information architecture, and a radar-like focus revealing structure and context around it. Sophisticated, premium, minimal, editorial-quality, WeChat cover friendly.",
+          "path": "drafts/2026-06-22/context-engineering-正在取代单点-prompt-技巧/cover.png",
+          "width": 1536,
+          "height": 1024,
+          "provider": "image2",
+          "provider_request_id": "resp_0e8016e6eae11d45016a38bebb0c00819a8abd3964cd04b0b5",
+          "created_at": "2026-06-22T04:49:42Z"
+        }
+      ],
+      "last_rerun_stage": "article",
+      "created_at": "2026-06-22T04:47:31Z",
+      "updated_at": "2026-06-22T05:31:24Z"
+    }
+  ],
+  "jobs": [],
+  "refreshes": {
+    "2026-06-20": {
+      "last_refresh_at": "2026-06-20T15:14:33",
+      "draft_id": "draft-2026-06-20-topic-agent-lab",
+      "reason": "scheduled daily refresh"
+    },
+    "2026-06-21": {
+      "last_refresh_at": "2026-06-21T13:19:24",
+      "draft_id": "draft-2026-06-21-topic-agent-lab",
+      "reason": "scheduled daily refresh"
+    },
+    "2026-06-22": {
+      "last_refresh_at": "2026-06-22T11:10:49",
+      "draft_id": "draft-2026-06-22-topic-agent-lab",
+      "reason": "scheduled daily refresh"
+    }
+  }
+}

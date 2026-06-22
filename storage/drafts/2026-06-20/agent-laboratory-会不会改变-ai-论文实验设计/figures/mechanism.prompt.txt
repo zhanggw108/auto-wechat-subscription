@@ -1,0 +1,1 @@
+Mechanism diagram for a WeChat article, clean dark technical editorial style, show workflow steps and evidence links for: Planner, reviewer, and executor agents share a structured research state and cite evidence before proposing experiments.. Use clear labels and structured arrows.

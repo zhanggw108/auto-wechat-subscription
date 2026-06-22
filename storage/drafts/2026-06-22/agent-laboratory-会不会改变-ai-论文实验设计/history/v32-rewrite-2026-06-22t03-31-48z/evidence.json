@@ -1,0 +1,46 @@
+[
+  {
+    "id": "evidence-topic-agent-lab-1",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2501.04227",
+    "source_title": "Agent Laboratory shows how research agents can structure literature review and experiments",
+    "claim": "Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+    "snippet": "Agent Laboratory shows how research agents can structure literature review and experiments: Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-22T03:17:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-2",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+    "source_title": "Agent Laboratory repository exposes the research workflow implementation",
+    "claim": "配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。",
+    "snippet": "Agent Laboratory repository exposes the research workflow implementation: 配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-22T03:17:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-3",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2308.03688",
+    "source_title": "AgentBench keeps agent evaluation grounded in interactive tasks",
+    "claim": "AgentBench 把 LLM agent 放进多个交互环境里评测，也记录了长期推理和指令遵循等常见失败点。",
+    "snippet": "AgentBench keeps agent evaluation grounded in interactive tasks: AgentBench 把 LLM agent 放进多个交互环境里评测，也记录了长期推理和指令遵循等常见失败点。",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-22T03:17:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-paper-profile",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/pdf/2501.04227",
+    "source_title": "Agent Laboratory: Using LLM Agents as Research Assistants",
+    "claim": "Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。",
+    "snippet": "Agent Laboratory 是一个基于 LLM agent 的自动化科研框架。它从人类给出的研究想法出发，依次推进文献综述、实验和报告写作，同时允许人类在每个阶段提供反馈。",
+    "confidence": "high",
+    "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+    "created_at": "2026-06-22T03:17:12Z"
+  }
+]

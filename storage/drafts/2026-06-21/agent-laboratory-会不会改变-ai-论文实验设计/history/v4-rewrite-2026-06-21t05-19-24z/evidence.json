@@ -1,0 +1,46 @@
+[
+  {
+    "id": "evidence-topic-agent-lab-1",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2606.20101",
+    "source_title": "Agent Laboratory proposes evidence-first research agents",
+    "claim": "A new arXiv paper frames LLM agents as research assistants for literature review and experiment planning.",
+    "snippet": "Agent Laboratory proposes evidence-first research agents: A new arXiv paper frames LLM agents as research assistants for literature review and experiment planning.",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-20T17:39:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-2",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://github.com/example/agent-laboratory",
+    "source_title": "agent-laboratory repository trends with reproducible workflows",
+    "claim": "The companion repository includes experiment templates and baseline selection scripts.",
+    "snippet": "agent-laboratory repository trends with reproducible workflows: The companion repository includes experiment templates and baseline selection scripts.",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-20T17:39:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-3",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://example.com/agent-eval-thesis-ideas",
+    "source_title": "Researchers discuss thesis ideas around agent evaluation",
+    "claim": "A popular post collects open problems in evaluating agent reliability and reproducibility.",
+    "snippet": "Researchers discuss thesis ideas around agent evaluation: A popular post collects open problems in evaluating agent reliability and reproducibility.",
+    "confidence": "medium",
+    "risk_note": "自媒体讨论只作为选题热度参考，不作为论文事实依据。",
+    "created_at": "2026-06-20T17:39:12Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-paper-profile",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/pdf/2606.20101",
+    "source_title": "Agent Laboratory: Using LLM Agents as Research Assistants",
+    "claim": "Planner, reviewer, and executor agents share a structured research state and cite evidence before proposing experiments.",
+    "snippet": "The paper studies a multi-agent workflow that assists literature review, experiment planning, baseline selection, and result critique for machine learning research.",
+    "confidence": "high",
+    "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+    "created_at": "2026-06-20T17:39:12Z"
+  }
+]

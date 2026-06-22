@@ -1,0 +1,214 @@
+# 今日 AI 论文与热点文章包
+
+## 主文章：长论文解读
+
+### Agent Laboratory 会不会改变 AI 论文实验设计？
+
+我今天重新翻到 Agent Laboratory 这篇论文的时候，第一反应不是「又一个科研 Agent 来了」。
+
+说真的，这个题已经不新了。
+
+论文是 2025 年 1 月 8 日挂到 arXiv 的，编号是 arXiv:2501.04227，标题叫 Agent Laboratory: Using LLM Agents as Research Assistants。现在拿出来写，不能把它包装成今天刚出现的新热点，这样不诚实。
+
+但我还是觉得它值得写。
+
+因为过去一年里，大家聊 Agent 的方式变了很多。以前更像是在问，AI 能不能自己做研究。现在更现实的问题变成了，AI 能不能帮一个学生把研究过程拆清楚，能不能让选题、实验、复现、写作这些动作变得更可检查。
+
+这才是 Agent Laboratory 有意思的地方。
+
+它没有神化 AI。至少我读下来，它真正想做的不是让 AI 替人类科学家一键发论文，而是把一个很混乱的科研流程拆成几段，文献综述、实验、报告写作，然后让不同角色的 agent 在这些阶段里协作。
+
+你可以把它理解成一个会干活的研究流程脚手架。
+
+不是一个灵感机器。
+
+这点对学生很重要。很多同学找论文题目时，最痛苦的不是完全没有想法，而是脑子里有一堆散的东西，却不知道哪个能做、哪个只是听起来很酷、哪个一落到实验就会露馅。
+
+Agent Laboratory 给我的启发就在这里。它把研究从「我要写一篇 AI 论文」这种大而空的愿望，拆成了一串可以被检查的问题。
+
+先看文献有没有支撑。
+
+再看实验能不能跑。
+
+再看报告是不是把方法、结果和局限讲清楚。
+
+最后还要允许人类在中间插手，而不是假装 agent 可以一路自动开到终点。
+
+这个设计听起来不性感，但很实用。
+
+论文里有几个结果可以记一下。作者报告说，在他们测试的后端模型里，o1-preview 的研究产出最好。加入人类反馈之后，质量会进一步提升。还有一个很抓眼球的数字，和此前一些自主科研方法相比，成本降低了 84%。
+
+这个数字很容易被写成标题党。
+
+但这里需要保守。
+
+我不建议把它理解成「科研成本已经被 AI 降低 84%」。更准确的说法是，在这篇论文设定的流程和比较对象里，Agent Laboratory 展示了更低成本完成一套研究辅助流程的可能性。
+
+差别很大。
+
+前者像结论，后者才像证据。
+
+如果你是本科生或者硕士，我建议你读这篇论文时先别急着追问它是不是能真的自动发顶会。那个问题太大，而且很容易把讨论带偏。
+
+更值得看的，是它怎么把研究动作结构化。
+
+比如文献综述阶段，它不是只让模型随便搜几篇文章，而是把阅读和整理变成一个阶段性任务。实验阶段也不是只喊一句「跑 baseline」，而是要让 agent 围绕研究想法推进实验。报告写作阶段则把前面的过程收束成文本。
+
+这套东西真正能转成论文选题的地方，也在这里。
+
+你完全可以不做一个完整的「自动科研系统」。那太大了，也不适合大多数学生。
+
+但你可以从里面拆一个小问题。
+
+比如，做一个面向毕业论文的实验设计助手，只负责把研究问题拆成变量、baseline、数据集和评价指标。
+
+或者，专门研究「证据约束」对研究型 agent 幻觉的影响。不给证据时它会怎么编，强制引用时它会不会更稳，人类复核放在哪个节点最有用。
+
+再或者，对比单 agent、多 agent、人工模板三种方式，让它们都生成实验设计方案，然后看哪一种更稳定、更容易被学生执行。
+
+这些方向没有那么炫，但更像真的能做出来的论文。
+
+说到复现，Agent Laboratory 的仓库在 GitHub 上，地址是 https://github.com/SamuelSchmidgall/AgentLaboratory 。发布前我更关心的不是它 star 多不多，而是它有没有给学生留下可操作的入口。
+
+我的判断是，有入口，但不能盲信。
+
+原因很简单，研究型 agent 的复现难点不只在代码能不能跑。更大的难点是，评价标准很容易变软。
+
+一个 agent 给你写出一段实验计划，看起来像那么回事，到底算不算好？
+
+一个报告写得很顺，它是不是就真的抓住了论文贡献？
+
+一个系统说自己降低了成本，它有没有同时牺牲掉研究质量、失败案例覆盖和人的审核时间？
+
+这些问题如果不问，文章就会变成工具宣传。
+
+我反而觉得，Agent Laboratory 最适合学生学习的一点，是它逼你承认，AI 辅助科研不是让人消失，而是让人的判断位置变得更重要。
+
+以前你可能是在最后检查论文有没有写错。
+
+现在你要在更早的地方介入。
+
+选题时介入，防止方向太空。
+
+实验前介入，防止 baseline 选错。
+
+生成报告后介入，防止模型把漂亮话当成结论。
+
+这也是为什么我会把 AgentBench 放进来源里一起看。AgentBench 讨论的是 LLM agent 在交互环境里的评测，它提醒我们一件事，agent 不是只要会回答问题就行，它还要能在长程任务里保持目标、遵循指令、处理失败。
+
+回到学生论文，这个提醒非常现实。
+
+如果你的论文题目叫「基于多 Agent 的科研助手系统」，那只是一个大壳。
+
+如果你把问题收窄成「多 Agent 实验设计助手在 baseline 选择上的可靠性评测」，它才开始像一个能做的题。
+
+这两者之间，差的不是技术名词。
+
+差的是问题有没有被拆到可以实验。
+
+所以，Agent Laboratory 会不会改变 AI 论文实验设计？
+
+我的答案是，会，但不是那种一夜之间的改变。
+
+它不会让学生从此不用读论文，不用想问题，不用做实验。恰恰相反，它把这些动作摊开给你看，让你知道每一步都可能出错，每一步也都可以被设计成研究问题。
+
+我觉得这就是它最值得写的地方。
+
+不是 AI 替你做研究。
+
+而是 AI 让「研究到底是怎么被做出来的」这件事，变得更可见。
+
+对于正在找 AI 论文方向的同学，这个启发比一个炫酷 demo 更值钱。
+
+### 重跑编辑札记
+
+这一版重新落回到一个更具体的问题：**Agent Laboratory 会不会改变 AI 论文实验设计？** 不是要证明 AI 已经能替人做研究，而是提醒学生把选题、证据、实验和复核拆成可以检查的动作。所以后面的阅读重点，仍然放在流程是否可复现、评价是否站得住，以及人类判断应该放在哪些节点。
+
+这次重跑的触发点是：manual workspace rerun。
+
+## 次文章 1：AI 热点
+
+### 今天这几条消息，我建议你不要当新闻看
+
+今天这几条消息，我建议你不要当新闻看。
+
+更准确的说，它们都在指向同一件事，Agent 这条线正在从「能不能做 demo」，慢慢走向「能不能被评测、被复现、被放进工程流程」。
+
+先看 Agent Laboratory 的 GitHub 仓库。
+
+它值得看，不是因为它能直接替你产出论文，而是因为它把文献综述、实验、报告写作这条链路做成了一个可观察的工程对象。对学生来说，这比一句「AI 帮你做科研」有用得多。
+
+来源，https://github.com/SamuelSchmidgall/AgentLaboratory
+
+再看 Anthropic 关于 agent eval 的文章。
+
+这篇文章提醒了一件很朴素但经常被忽略的事，评测 agent 不能只看最后答案。你还要看任务轨迹、grader 是否可靠，以及哪些节点需要人类复核。
+
+来源，https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents
+
+顺着这个再读 Anthropic 的 Building Effective Agents，会更容易理解为什么很多好用的 agent 系统不是一上来就全自主，而是先从简单、可组合的 workflow 开始。
+
+来源，https://www.anthropic.com/engineering/building-effective-agents
+
+OpenAI Evals 和 LangGraph 也可以放在一起看。
+
+前者适合学习数据集、grader 和回归式检查怎么组织，后者适合观察状态、持久执行和可控 workflow 怎么工程化。
+
+来源，https://github.com/openai/evals
+
+来源，https://github.com/langchain-ai/langgraph
+
+所以这栏真正想说的不是今天又多了几个链接。
+
+而是 Agent 论文和工具如果要真的进入学生论文，就必须回答一个更硬的问题。
+
+它能不能被评测。
+
+它能不能被复现。
+
+它能不能在失败时留下足够清楚的证据。
+
+## 次文章 2：arXiv 高热度文章速报
+
+### 今天这组论文，我建议先按选题价值来读
+
+今天这组论文，我建议先按选题价值来读。
+
+也就是说，先别急着问它是不是今天刚发，也别只看标题里有没有 Agent、RAG、Long Context 这些词。
+
+先看它能不能帮你把一个 AI 论文方向拆清楚。
+
+第一篇当然还是 Agent Laboratory: Using LLM Agents as Research Assistants，arXiv:2501.04227。
+
+这篇适合想做科研 agent、论文助手、实验设计助手的同学读。重点不要只看自动化程度，要看它怎样拆分科研流程，以及人类反馈放在哪些节点。
+
+链接，https://arxiv.org/pdf/2501.04227
+
+第二篇是 Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach，arXiv:2407.16833。
+
+这篇适合正在纠结长上下文和 RAG 选题的同学读。它的启发不是简单宣布谁淘汰谁，而是把效果、成本和路由选择放在同一个实验框架里讨论。
+
+链接，https://arxiv.org/pdf/2407.16833
+
+第三篇是 AgentBench: Evaluating LLMs as Agents，arXiv:2308.03688。
+
+这篇适合做 agent 评测方向的同学读。它把 agent 放进多个交互环境里，能帮助你理解为什么长程推理、指令遵循和失败恢复，比单轮问答更难评。
+
+链接，https://arxiv.org/abs/2308.03688
+
+我的建议是，次文章的 arXiv 速报不要写成论文目录。
+
+目录对读者没什么用。
+
+读者真正需要的是，哪篇值得先读，为什么值得读，以及它有没有机会继续展开成长文或课程论文方向。
+
+## 来源清单
+
+- [Agent Laboratory: Using LLM Agents as Research Assistants](https://arxiv.org/abs/2501.04227)
+- [Agent Laboratory GitHub repository](https://github.com/SamuelSchmidgall/AgentLaboratory)
+- [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [OpenAI Evals](https://github.com/openai/evals)
+- [LangGraph](https://github.com/langchain-ai/langgraph)
+- [Retrieval Augmented Generation or Long-Context LLMs?](https://arxiv.org/abs/2407.16833)
+- [AgentBench: Evaluating LLMs as Agents](https://arxiv.org/abs/2308.03688)

@@ -1,0 +1,78 @@
+# 今日 AI 论文与热点文章包
+
+## 主文章：长论文解读
+
+### Agent Laboratory 会不会改变 AI 论文实验设计？
+
+> 从研究型 agent 的证据链、实验规划和可复现价值切入，写一篇头版论文解析。
+
+适合本科生、硕士研究生重点阅读；高中生可以先看问题背景和直觉解释，博士读者可以重点看实验可信度、局限和可延伸方向。
+
+今天这篇论文值得做成长文，不是因为它又把 AI 包装成万能工具，而是因为它正好踩在“论文怎么选题、实验怎么设计、结果怎么复现”这三个真实问题上。
+
+### 1. 这篇论文到底想解决什么问题
+
+Agent Laboratory: Using LLM Agents as Research Assistants 关注的是研究流程里最容易被低估的一段：从读论文、定问题，到设计实验和判断结果。对学生来说，这不是一个遥远的 agent demo，而是每天都会卡住的论文生产环节。
+
+### 2. 它的方法亮点在哪里
+
+Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。
+
+这类方法真正有价值的地方，不在于“让 AI 替你写论文”，而在于把研究动作拆成可检查的步骤：先找证据，再给方案，再暴露风险。
+
+### 3. 实验结果能不能信
+
+论文报告里，o1-preview 在测试的后端模型中效果最好；加入人类反馈后，产出质量会进一步提升；作者还给出一个很抓眼球的数字，和此前自主科研方法相比，成本降低了 84%。
+
+这里需要保守一点：如果评测依赖专家打分，公众号里就不能把它写成确定性的胜利。更好的写法是讲清楚它证明了什么，还没证明什么。
+
+### 4. 代码和复现价值如何
+
+复现入口：https://github.com/SamuelSchmidgall/AgentLaboratory
+
+如果要把它转成学生论文方向，优先看三件事：baseline 是否清楚，数据是否可拿到，失败案例是否足够具体。
+
+### 5. 对学生选题有什么启发
+
+- 面向毕业论文的 agent 实验设计助手
+- 研究型 agent 的证据约束与幻觉评测
+- 多 agent 协作在 baseline 选择中的可靠性
+
+### 6. 可以延伸成哪些论文方向
+
+- 做一个面向具体领域的研究 agent，但把评价重点放在证据质量，而不是回答是否流畅。
+- 对比单 agent、多 agent、人工模板三种实验设计方式，看哪一种更稳定。
+- 把 trace、引用和人工审核结合起来，做一个“研究建议可信度”评测框架。
+
+### 7. 我的判断
+
+这类工作真正值得写，是因为它把 AI 论文辅导里最难讲清楚的东西摆到了台面上：不是给学生一个题目就结束，而是帮他知道为什么这个题能做、怎么做、风险在哪里。
+
+### 配图建议
+
+- 封面图：用 image2 表达“研究雷达锁定一篇高价值 AI 论文”，适合公众号首屏。
+- 机制图：用 image2 解释论文方法、证据链、实验规划和人工审核之间的关系。
+
+## 次文章 1：AI 热点
+
+这一栏不追求把新闻复述完整，而是帮读者快速知道今天 AI 圈哪些变化值得留意，以及它们可能怎样影响论文选题、实验设计或工具复现。
+
+- **Agent Laboratory repository exposes the research workflow implementation**：配套仓库展示了从文献综述到实验、再到报告写作的端到端流程，适合用来观察研究型 agent 的工程边界。 我的判断：它值得关注的地方，是能不能转成实验设计、复现工具或论文问题。来源：https://github.com/SamuelSchmidgall/AgentLaboratory
+- **Anthropic discusses how to evaluate AI agents**：Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。 我的判断：它值得关注的地方，是能不能转成实验设计、复现工具或论文问题。来源：https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents
+- **Anthropic highlights context engineering patterns**：Anthropic 强调有效 agent 往往先从简单、可组合的 workflow 开始，再逐步走向更自主的系统。 我的判断：它值得关注的地方，是能不能转成实验设计、复现工具或论文问题。来源：https://www.anthropic.com/engineering/building-effective-agents
+- **OpenAI Evals remains a useful baseline for model evaluation workflows**：OpenAI Evals 仓库给了学生一个具体入口，可以从数据集、grader 和回归式模型检查开始搭评测 baseline。 我的判断：它值得关注的地方，是能不能转成实验设计、复现工具或论文问题。来源：https://github.com/openai/evals
+- **LangGraph gives agent workflows a concrete engineering baseline**：LangGraph 关注持久执行、状态管理和可控 agent workflow，适合作为可复现 agent 工程的参考基线。 我的判断：它值得关注的地方，是能不能转成实验设计、复现工具或论文问题。来源：https://github.com/langchain-ai/langgraph
+
+## 次文章 2：arXiv 高热度文章速报
+
+这一栏给本科生和硕士一个快速阅读入口：先知道论文在做什么、适不适合自己读，再决定要不要深挖。
+
+- **Agent Laboratory: Using LLM Agents as Research Assistants**（cs.AI, cs.LG，arXiv:2501.04227）：Agent Laboratory 把科研流程拆成文献综述、实验和报告写作三个阶段，让不同角色的 agent 围绕同一个研究想法协作，并在每个阶段保留人类反馈入口。 适合本科高年级和硕士重点阅读；如果要后续展开，优先看复现价值 88/100。链接：https://arxiv.org/pdf/2501.04227
+- **Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach**（cs.CL, cs.IR，arXiv:2407.16833）：论文在多个公开数据集上比较 RAG 和长上下文 LLM，再用模型自我反思来决定每个问题走检索路径还是长上下文路径。 适合本科高年级和硕士重点阅读；如果要后续展开，优先看复现价值 82/100。链接：https://arxiv.org/pdf/2407.16833
+
+## 来源清单
+
+- [Agent Laboratory shows how research agents can structure literature review and experiments](https://arxiv.org/abs/2501.04227)
+- [Agent Laboratory repository exposes the research workflow implementation](https://github.com/SamuelSchmidgall/AgentLaboratory)
+- [AgentBench keeps agent evaluation grounded in interactive tasks](https://arxiv.org/abs/2308.03688)
+- [Agent Laboratory: Using LLM Agents as Research Assistants](https://arxiv.org/pdf/2501.04227)

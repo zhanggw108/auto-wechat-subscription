@@ -1,0 +1,35 @@
+[
+  {
+    "id": "evidence-topic-long-context-rag-1",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://arxiv.org/abs/2407.16833",
+    "source_title": "Long-context RAG paper questions the end of retrieval",
+    "claim": "这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+    "snippet": "Long-context RAG paper questions the end of retrieval: 这篇论文比较 RAG 和长上下文 LLM，核心启发是不要急着二选一，路由机制可能在质量和成本之间给出更现实的折中。",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-22T04:40:17Z"
+  },
+  {
+    "id": "evidence-topic-long-context-rag-2",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+    "source_title": "Anthropic discusses how to evaluate AI agents",
+    "claim": "Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。",
+    "snippet": "Anthropic discusses how to evaluate AI agents: Anthropic 的 agent eval 文章强调，评测要覆盖任务结果、轨迹、grader 可靠性和必要的人类复核，不能只看单轮答案。",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-22T04:40:17Z"
+  },
+  {
+    "id": "evidence-topic-long-context-rag-paper-profile",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://arxiv.org/pdf/2407.16833",
+    "source_title": "Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach",
+    "claim": "论文在多个公开数据集上比较 RAG 和长上下文 LLM，再用模型自我反思来决定每个问题走检索路径还是长上下文路径。",
+    "snippet": "这篇论文系统比较了检索增强生成和长上下文 LLM，并提出 Self-Route，用模型自我判断在 RAG 和长上下文路径之间做选择，以降低成本并尽量保持效果。",
+    "confidence": "high",
+    "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+    "created_at": "2026-06-22T04:40:17Z"
+  }
+]

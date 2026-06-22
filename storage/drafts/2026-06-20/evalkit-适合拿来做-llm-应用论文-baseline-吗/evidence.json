@@ -1,0 +1,13 @@
+[
+  {
+    "id": "evidence-topic-evalkit-1",
+    "topic_id": "topic-evalkit",
+    "source_url": "https://github.com/example/evalkit",
+    "source_title": "EvalKit adds trace-based grading for LLM apps",
+    "claim": "A Python toolkit adds dataset versioning, rubric graders, and regression reports.",
+    "snippet": "EvalKit adds trace-based grading for LLM apps: A Python toolkit adds dataset versioning, rubric graders, and regression reports.",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-20T08:21:46Z"
+  }
+]

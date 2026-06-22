@@ -1,0 +1,35 @@
+[
+  {
+    "id": "evidence-topic-long-context-rag-1",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://arxiv.org/abs/2606.20102",
+    "source_title": "Long-context RAG paper questions the end of retrieval",
+    "claim": "The paper argues retrieval remains useful for citation faithfulness even with large context windows.",
+    "snippet": "Long-context RAG paper questions the end of retrieval: The paper argues retrieval remains useful for citation faithfulness even with large context windows.",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-21T16:22:57Z"
+  },
+  {
+    "id": "evidence-topic-long-context-rag-2",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://openai.com/index/evals-agentic-systems/",
+    "source_title": "OpenAI updates model evaluation guidance for agentic systems",
+    "claim": "The guidance emphasizes task-level evals, traces, and human review for agent workflows.",
+    "snippet": "OpenAI updates model evaluation guidance for agentic systems: The guidance emphasizes task-level evals, traces, and human review for agent workflows.",
+    "confidence": "high",
+    "risk_note": "",
+    "created_at": "2026-06-21T16:22:57Z"
+  },
+  {
+    "id": "evidence-topic-long-context-rag-paper-profile",
+    "topic_id": "topic-long-context-rag",
+    "source_url": "https://arxiv.org/pdf/2606.20102",
+    "source_title": "RAG Under Long Context: When Retrieval Still Matters",
+    "claim": "The evaluation varies context length, retriever quality, and citation constraints to isolate where RAG adds value.",
+    "snippet": "This work evaluates retrieval-augmented generation when frontier models can read long contexts.",
+    "confidence": "high",
+    "risk_note": "实验结论需要人工阅读 PDF 后确认细节和指标。",
+    "created_at": "2026-06-21T16:22:57Z"
+  }
+]

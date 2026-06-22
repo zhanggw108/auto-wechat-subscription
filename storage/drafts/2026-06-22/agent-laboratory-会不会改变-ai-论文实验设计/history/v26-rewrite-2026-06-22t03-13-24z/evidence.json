@@ -1,0 +1,90 @@
+[
+  {
+    "id": "evidence-topic-agent-lab-paper",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2501.04227",
+    "source_title": "Agent Laboratory: Using LLM Agents as Research Assistants",
+    "claim": "Agent Laboratory 是一个基于 LLM agent 的科研辅助框架，覆盖文献综述、实验和报告写作，并保留人类反馈入口。",
+    "snippet": "论文页面和 PDF 用于核对标题、arXiv ID、发布日期、方法范围和实验结论。",
+    "confidence": "high",
+    "risk_note": "不是 2026 年今日新论文，正文必须明确发布日期。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-repo",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+    "source_title": "Agent Laboratory GitHub repository",
+    "claim": "配套仓库展示 Agent Laboratory 的实现入口，可用于复现和工程边界判断。",
+    "snippet": "仓库用于核对复现入口，不把 star 或热度当作论文事实。",
+    "confidence": "high",
+    "risk_note": "仓库可运行性仍需发布前按本机环境单独验证。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-anthropic-evals",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+    "source_title": "Demystifying evals for AI agents",
+    "claim": "Agent 评测需要关注任务结果、执行轨迹、grader 可靠性和必要的人类复核。",
+    "snippet": "用于支撑正文中对 agent eval 不能只看最终答案的判断。",
+    "confidence": "high",
+    "risk_note": "作为评测方法论参考，不作为 Agent Laboratory 论文实验结果。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-anthropic-agents",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://www.anthropic.com/engineering/building-effective-agents",
+    "source_title": "Building effective agents",
+    "claim": "有效 agent 通常应从简单、可组合的 workflow 开始，再逐步走向更自主的系统。",
+    "snippet": "用于支撑正文中不要迷信全自主 agent 的工程判断。",
+    "confidence": "high",
+    "risk_note": "作为工程方法论参考。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-openai-evals",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://github.com/openai/evals",
+    "source_title": "OpenAI Evals",
+    "claim": "OpenAI Evals 可作为学生搭建数据集、grader 和回归式模型检查的 baseline 入口。",
+    "snippet": "用于次文章热点中的评测工具入口。",
+    "confidence": "high",
+    "risk_note": "开源仓库状态会变化，发布前可再次打开确认。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-langgraph",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://github.com/langchain-ai/langgraph",
+    "source_title": "LangGraph",
+    "claim": "LangGraph 提供状态、持久执行和可控 agent workflow 的工程参考。",
+    "snippet": "用于次文章热点中的 agent 工程复现参考。",
+    "confidence": "high",
+    "risk_note": "开源仓库状态会变化，发布前可再次打开确认。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-rag-long-context",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2407.16833",
+    "source_title": "Retrieval Augmented Generation or Long-Context LLMs? A Comprehensive Study and Hybrid Approach",
+    "claim": "论文比较 RAG 与长上下文 LLM，并讨论以路由方式平衡效果和成本。",
+    "snippet": "用于相关阅读速报，不作为 Agent Laboratory 本文核心事实。",
+    "confidence": "high",
+    "risk_note": "不是今日新论文。",
+    "created_at": "2026-06-22T03:10:54Z"
+  },
+  {
+    "id": "evidence-topic-agent-lab-agentbench",
+    "topic_id": "topic-agent-lab",
+    "source_url": "https://arxiv.org/abs/2308.03688",
+    "source_title": "AgentBench: Evaluating LLMs as Agents",
+    "claim": "AgentBench 在交互环境中评测 LLM agent，暴露长程推理、指令遵循和失败恢复等问题。",
+    "snippet": "用于支撑正文中 agent 评测不能停留在单轮问答的判断。",
+    "confidence": "high",
+    "risk_note": "不是今日新论文。",
+    "created_at": "2026-06-22T03:10:54Z"
+  }
+]

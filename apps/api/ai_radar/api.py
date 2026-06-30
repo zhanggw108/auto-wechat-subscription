@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .models import DraftContentUpdate, RefreshModuleRequest, RegenerateRequest, TopicPackRefreshRequest
 from .pipeline import DailyPipeline
+from .llm_provider import ResponsesLLMProvider
 from .settings import ProvidersSettingsInput, SettingsStore
 from .storage import JsonStore
 
@@ -98,7 +99,9 @@ def create_app(
 
     @app.put("/api/settings/providers")
     def update_provider_settings(settings: ProvidersSettingsInput):
-        return SettingsStore(root).update(settings)
+        updated = SettingsStore(root).update(settings)
+        pipeline.llm_provider = ResponsesLLMProvider.from_env(root)
+        return updated
 
     @app.post("/api/sources/{source_id}/refresh")
     def refresh_source(source_id: str):

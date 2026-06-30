@@ -83,3 +83,30 @@ def test_settings_update_preserves_existing_key_when_blank(tmp_path: Path):
     assert raw["llm"]["api_key"] == "sk-existing"
     assert raw["llm"]["provider"] == "doubao"
     assert raw["llm"]["base_url"] == "https://new.example.com/v1"
+
+
+def test_settings_update_refreshes_live_llm_provider(tmp_path: Path):
+    app = create_app(storage_root=tmp_path)
+    client = TestClient(app)
+
+    assert app.state.pipeline.llm_provider is None
+
+    saved = client.put(
+        "/api/settings/providers",
+        json={
+            "llm": {
+                "provider": "deepseek",
+                "base_url": "https://api.deepseek.com",
+                "api_key": "sk-live",
+                "model": "deepseek-v4-pro",
+            },
+            "image2": {},
+        },
+    )
+
+    assert saved.status_code == 200
+    provider = app.state.pipeline.llm_provider
+    assert provider is not None
+    assert provider.provider == "deepseek"
+    assert provider.base_url == "https://api.deepseek.com"
+    assert provider.model == "deepseek-v4-pro"

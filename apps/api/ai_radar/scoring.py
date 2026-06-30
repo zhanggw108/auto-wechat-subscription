@@ -329,11 +329,11 @@ def _match_domains(signals: List[Signal], entries: List[SourceDomainEntry]) -> t
 def _history_penalty(paper: Paper, previous_items: List[Mapping[str, object]]) -> int:
     paper_arxiv_id = _normalize_arxiv_id(paper.arxiv_id)
     paper_urls = {paper.pdf_url.rstrip("/"), f"https://arxiv.org/abs/{paper.arxiv_id}".rstrip("/")}
-    paper_dedupe_key = _paper_dedupe_key(paper)
+    paper_dedupe_keys = _paper_dedupe_keys(paper)
     for item in previous_items:
         if paper_arxiv_id and _normalize_arxiv_id(str(item.get("arxiv_id") or "")) == paper_arxiv_id:
             return 30
-        if _normalize_dedupe(str(item.get("dedupe_key") or "")) == paper_dedupe_key:
+        if _normalize_dedupe(str(item.get("dedupe_key") or "")) in paper_dedupe_keys:
             return 30
         raw_urls = item.get("source_urls", [])
         source_urls = {str(url).rstrip("/") for url in raw_urls if str(url).strip()} if isinstance(raw_urls, list) else set()
@@ -362,18 +362,18 @@ def _normalize_dedupe(value: str) -> str:
     return " ".join(value.lower().strip().split())
 
 
-def _paper_dedupe_key(paper: Paper) -> str:
-    arxiv_id = _normalize_arxiv_id(paper.arxiv_id)
-    return _normalize_dedupe(
-        "|".join(
-            [
-                paper.title,
-                arxiv_id,
-                f"https://arxiv.org/abs/{arxiv_id}",
-                f"https://arxiv.org/pdf/{arxiv_id}",
-            ]
+def _paper_dedupe_keys(paper: Paper) -> set[str]:
+    arxiv_ids = {paper.arxiv_id, _normalize_arxiv_id(paper.arxiv_id)}
+    return {
+        _normalize_dedupe("|".join(parts))
+        for arxiv_id in arxiv_ids
+        if arxiv_id
+        for parts in (
+            [paper.title, arxiv_id, f"https://arxiv.org/abs/{arxiv_id}"],
+            [paper.title, arxiv_id, f"https://arxiv.org/abs/{arxiv_id}", paper.pdf_url],
+            [paper.title, arxiv_id, f"https://arxiv.org/abs/{arxiv_id}", f"https://arxiv.org/pdf/{arxiv_id}"],
         )
-    )
+    }
 
 
 def _alias_matches(text: str, alias: str) -> bool:

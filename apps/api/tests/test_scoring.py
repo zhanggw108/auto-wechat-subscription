@@ -212,7 +212,7 @@ def test_history_penalty_matches_current_dedupe_key(tmp_path: Path):
         encoding="utf-8",
     )
     paper = make_paper(
-        "2606.00007",
+        "2606.00007v2",
         "Agent Training Framework",
         "A framework for agent training with benchmark evaluation and ablation.",
     )
@@ -221,6 +221,30 @@ def test_history_penalty_matches_current_dedupe_key(tmp_path: Path):
             "arxiv_id": "",
             "source_urls": [],
             "dedupe_key": "agent training framework|2606.00007|https://arxiv.org/abs/2606.00007|https://arxiv.org/pdf/2606.00007",
+        }
+    ]
+
+    scores = score_papers([paper], signals=[], previous_items=previous_items, config_path=config_path)
+
+    assert scores[0].score_detail["penalties"]["value"] >= 20
+
+
+def test_history_penalty_matches_pipeline_abs_only_dedupe_key(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps({"institutions": [], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00007v2",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+    previous_items = [
+        {
+            "arxiv_id": "",
+            "source_urls": [],
+            "dedupe_key": "agent training framework|2606.00007v2|https://arxiv.org/abs/2606.00007v2",
         }
     ]
 

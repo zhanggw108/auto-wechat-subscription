@@ -126,7 +126,7 @@ class DailyPipeline:
         run_date = date or date_type.today().isoformat()
         current = self.store.current_topic_pack(run_date)
         if current:
-            if not self._topic_pack_is_complete(current):
+            if current.status != "partial" and not self._topic_pack_is_complete(current):
                 raise KeyError(run_date)
             return self._with_topic_pack_topic_ids(current)
         raise KeyError(run_date)
@@ -342,47 +342,60 @@ class DailyPipeline:
         response_id = generated.get("_response_id", "")
         prompt_summary = generated.get("_prompt_summary", "")
         long_article_scores: List[PaperScore] = []
+        missing_modules: List[Literal["long_articles", "ai_hotspots", "arxiv_papers"]] = []
         if lock_long_articles:
             long_article_scores = self._score_long_article_papers(run)
-            llm_long_articles = self._items_from_payload(
+            llm_long_articles = self._items_from_payload_or_empty(
                 run.date,
                 next_version,
                 "long_articles",
                 generated.get("long_articles"),
                 response_id,
+                missing_modules,
             )
             long_articles = self._locked_long_article_items(run.date, next_version, long_article_scores, llm_long_articles, response_id)
         elif generation_module in {"long_articles", "all"}:
-            long_articles = self._items_from_payload(
+            long_articles = self._items_from_payload_or_empty(
                 run.date,
                 next_version,
                 "long_articles",
                 generated.get("long_articles"),
                 response_id,
+                missing_modules,
             )
         else:
             long_articles = previous.long_articles if previous else []
-        ai_hotspots = (previous.ai_hotspots if previous else []) if generation_module not in {"ai_hotspots", "all"} else self._items_from_payload(
-            run.date,
-            next_version,
-            "ai_hotspots",
-            generated.get("ai_hotspots"),
-            response_id,
-        )
-        arxiv_papers = (previous.arxiv_papers if previous else []) if generation_module not in {"arxiv_papers", "all"} else self._items_from_payload(
-            run.date,
-            next_version,
-            "arxiv_papers",
-            generated.get("arxiv_papers"),
-            response_id,
-        )
+        if generation_module not in {"ai_hotspots", "all"}:
+            ai_hotspots = previous.ai_hotspots if previous else []
+        else:
+            ai_hotspots = self._items_from_payload_or_previous(
+                run.date,
+                next_version,
+                "ai_hotspots",
+                generated.get("ai_hotspots"),
+                response_id,
+                previous.ai_hotspots if previous else [],
+                missing_modules,
+            )
+        if generation_module not in {"arxiv_papers", "all"}:
+            arxiv_papers = previous.arxiv_papers if previous else []
+        else:
+            arxiv_papers = self._items_from_payload_or_previous(
+                run.date,
+                next_version,
+                "arxiv_papers",
+                generated.get("arxiv_papers"),
+                response_id,
+                previous.arxiv_papers if previous else [],
+                missing_modules,
+            )
         pack = TopicPackVersion(
             id=f"topic-pack-{run.date}-v{next_version:02d}",
             date=run.date,
             version=next_version,
             trigger=trigger,
             refreshed_module=module,
-            status="ready",
+            status="partial" if missing_modules else "ready",
             long_articles=self._rank_items(long_articles, "long_articles"),
             ai_hotspots=self._rank_items(ai_hotspots, "ai_hotspots"),
             arxiv_papers=self._rank_items(arxiv_papers, "arxiv_papers"),
@@ -756,6 +769,37 @@ class DailyPipeline:
             raise RuntimeError(f"LLM response {module} must contain at least {min_count} valid items")
         return items[:max_count]
 
+    def _items_from_payload_or_empty(
+        self,
+        run_date: str,
+        version: int,
+        module: Literal["long_articles", "ai_hotspots", "arxiv_papers"],
+        payload: object,
+        llm_response_id: str,
+        missing_modules: List[Literal["long_articles", "ai_hotspots", "arxiv_papers"]],
+    ) -> List[TopicPackItem]:
+        try:
+            return self._items_from_payload(run_date, version, module, payload, llm_response_id)
+        except RuntimeError:
+            missing_modules.append(module)
+            return []
+
+    def _items_from_payload_or_previous(
+        self,
+        run_date: str,
+        version: int,
+        module: Literal["ai_hotspots", "arxiv_papers"],
+        payload: object,
+        llm_response_id: str,
+        previous_items: List[TopicPackItem],
+        missing_modules: List[Literal["long_articles", "ai_hotspots", "arxiv_papers"]],
+    ) -> List[TopicPackItem]:
+        try:
+            return self._items_from_payload(run_date, version, module, payload, llm_response_id)
+        except RuntimeError:
+            missing_modules.append(module)
+            return previous_items
+
     def _make_topic_pack_item(
         self,
         run_date: str,
@@ -795,9 +839,9 @@ class DailyPipeline:
     def _validate_topic_pack(self, pack: TopicPackVersion) -> None:
         if len(pack.long_articles) != 5:
             raise RuntimeError("Topic pack long_articles must contain 5 items")
-        if not 5 <= len(pack.ai_hotspots) <= 10:
+        if pack.ai_hotspots and not 5 <= len(pack.ai_hotspots) <= 10:
             raise RuntimeError("Topic pack ai_hotspots must contain 5-10 items")
-        if not 5 <= len(pack.arxiv_papers) <= 10:
+        if pack.arxiv_papers and not 5 <= len(pack.arxiv_papers) <= 10:
             raise RuntimeError("Topic pack arxiv_papers must contain 5-10 items")
 
     def _validate_refreshed_module_changed(self, previous: TopicPackVersion, pack: TopicPackVersion, module: TopicPackModule) -> None:

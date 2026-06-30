@@ -649,7 +649,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
               <h2>选题池</h2>
             </div>
             <span className="quiet-badge">
-              {topicPack ? `topic pack v${topicPack.version}` : "5-10 candidates"}
+              {topicPack ? `topic pack v${topicPack.version}${topicPack.status === "partial" ? " · 部分成功" : ""}` : "5-10 candidates"}
             </span>
           </div>
 
@@ -1033,6 +1033,7 @@ function TopicPackModulePanel({
         </button>
       </div>
       <div className="topic-pack-list">
+        {items.length === 0 ? <p className="empty-state">这个模块还没生成成功，可单独刷新。</p> : null}
         {items.map((item) => {
           const scoreSummary = item.module === "long_articles" ? topicPackScoreSummary(item) : null;
           return (

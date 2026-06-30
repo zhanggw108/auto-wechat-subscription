@@ -330,6 +330,20 @@ class WrongTitleLongArticleLLM:
         return type("Result", (), {"response_id": "wrong-title-test", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
+class MissingLongArticlesLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload.pop("long_articles")
+        return type("Result", (), {"response_id": "missing-long-articles", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
+class MissingHotspotsLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload.pop("ai_hotspots")
+        return type("Result", (), {"response_id": "missing-hotspots", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
 def test_refresh_status_counts_down_to_11_before_daily_refresh(tmp_path: Path):
     pipeline = DailyPipeline(JsonStore(tmp_path))
 
@@ -510,6 +524,37 @@ def test_topic_pack_rejects_mismatched_llm_title_for_locked_paper(tmp_path: Path
     paper = next(paper for paper in store.list_papers() if paper.arxiv_id == "2501.04227")
     assert item.title == paper.title
     assert item.title != "完全错误的行业新闻标题"
+
+
+def test_topic_pack_all_refresh_keeps_successful_modules_when_long_articles_missing(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=MissingLongArticlesLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial schema")
+    current = pipeline.ensure_topic_pack("2026-06-20")
+
+    assert pack.status == "partial"
+    assert current.id == pack.id
+    assert len(pack.long_articles) == 5
+    assert len(pack.ai_hotspots) == 5
+    assert len(pack.arxiv_papers) == 5
+    assert all(item.score_detail for item in pack.long_articles)
+    assert pack.llm_response_id == "missing-long-articles"
+
+
+def test_topic_pack_all_refresh_returns_partial_pack_when_secondary_module_missing(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=MissingHotspotsLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial hotspots")
+    current = pipeline.ensure_topic_pack("2026-06-20")
+
+    assert pack.status == "partial"
+    assert current.id == pack.id
+    assert len(pack.long_articles) == 5
+    assert pack.ai_hotspots == []
+    assert len(pack.arxiv_papers) == 5
+    assert all(item.score_detail for item in pack.long_articles)
 
 
 def test_topic_pack_scores_penalize_cross_day_history(tmp_path: Path, monkeypatch):

@@ -99,7 +99,7 @@ export type TopicPackVersion = {
   version: number;
   trigger: "scheduled" | "manual";
   refreshed_module: TopicPackModule;
-  status: "generating" | "ready" | "failed";
+  status: "generating" | "ready" | "partial" | "failed";
   long_articles: TopicPackItem[];
   ai_hotspots: TopicPackItem[];
   arxiv_papers: TopicPackItem[];

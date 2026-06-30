@@ -107,7 +107,7 @@ class TopicPackVersion(BaseModel):
     version: int = Field(ge=1)
     trigger: Literal["scheduled", "manual"]
     refreshed_module: TopicPackModule
-    status: Literal["generating", "ready", "failed"] = "ready"
+    status: Literal["generating", "ready", "partial", "failed"] = "ready"
     long_articles: List[TopicPackItem]
     ai_hotspots: List[TopicPackItem]
     arxiv_papers: List[TopicPackItem]

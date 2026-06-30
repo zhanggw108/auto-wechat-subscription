@@ -20,12 +20,16 @@ class ResponsesLLMProvider:
         base_url: str,
         api_key: str,
         model: str,
-        timeout_seconds: float = 8,
+        provider: str = "relay",
+        timeout_seconds: float = 240,
+        max_retries: int = 0,
         client: Optional[httpx.Client] = None,
     ):
+        self.provider = provider
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
+        self.max_retries = max(0, max_retries)
         self.client = client or httpx.Client(timeout=timeout_seconds)
 
     @classmethod
@@ -40,18 +44,54 @@ class ResponsesLLMProvider:
         model = settings.get("model") or os.getenv("LLM_RESPONSES_MODEL") or os.getenv("OPENAI_RESPONSES_MODEL")
         if not base_url or not api_key or not model:
             return None
-        timeout_seconds = float(os.getenv("LLM_TIMEOUT_SECONDS", "8"))
-        return cls(base_url=base_url, api_key=api_key, model=model, timeout_seconds=timeout_seconds)
+        timeout_seconds = float(os.getenv("LLM_TIMEOUT_SECONDS", "240"))
+        max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        return cls(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            provider=settings.get("provider", "relay"),
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+        )
 
     def complete(self, instructions: str, input_text: str) -> LLMResult:
-        response = self.client.post(
-            f"{self.base_url}/responses",
-            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            json={"model": self.model, "instructions": instructions, "input": input_text},
-        )
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.client.post(
+                    self._request_path(),
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json=self._request_body(instructions, input_text),
+                )
+                break
+            except (httpx.TimeoutException, httpx.TransportError) as error:
+                last_error = error
+                if attempt >= self.max_retries:
+                    raise
+        else:
+            raise RuntimeError(f"LLM request failed: {last_error}")
         response.raise_for_status()
         payload = response.json()
+        if self.provider == "deepseek":
+            return LLMResult(text=extract_chat_completion_text(payload), response_id=payload.get("id", ""))
         return LLMResult(text=extract_response_text(payload), response_id=payload.get("id", ""))
+
+    def _request_path(self) -> str:
+        if self.provider == "deepseek":
+            return f"{self.base_url}/chat/completions"
+        return f"{self.base_url}/responses"
+
+    def _request_body(self, instructions: str, input_text: str) -> dict:
+        if self.provider == "deepseek":
+            return {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": input_text},
+                ],
+            }
+        return {"model": self.model, "instructions": instructions, "input": input_text}
 
 
 def extract_response_text(payload: dict) -> str:
@@ -66,3 +106,11 @@ def extract_response_text(payload: dict) -> str:
         elif isinstance(item.get("text"), str):
             parts.append(item["text"])
     return "\n".join(parts).strip()
+
+
+def extract_chat_completion_text(payload: dict) -> str:
+    for choice in payload.get("choices", []):
+        message = choice.get("message", {})
+        if isinstance(message.get("content"), str):
+            return message["content"].strip()
+    return ""

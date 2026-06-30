@@ -1,7 +1,25 @@
 from pathlib import Path
 
-from ai_radar.pipeline import DailyPipeline
+from ai_radar.models import EvidenceItem, Paper, ScoreItem, Signal, Topic
+from ai_radar.pipeline import DailyPipeline, article_main_is_chinese, build_article_markdown
 from ai_radar.storage import JsonStore
+
+
+class FakeImageProvider:
+    def __init__(self, png: bytes = b"\x89PNG\r\n\x1a\nfake-image"):
+        self.png = png
+
+    def generate(self, prompt: str, output_path: Path):
+        from ai_radar.image_provider import ImageResult
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(self.png)
+        return ImageResult(path=output_path, revised_prompt=prompt, provider_request_id="resp-test-image")
+
+
+class FailingImageProvider:
+    def generate(self, prompt: str, output_path: Path):
+        raise RuntimeError("image relay unavailable")
 
 
 class BadArticleLLM:
@@ -31,6 +49,17 @@ class BadArticleLLM:
         return Result()
 
 
+class FallbackCopyingLLM:
+    def complete(self, instructions: str, input_text: str):
+        fallback = input_text.split("本地 fallback 草稿，可参考结构但不要照抄:", 1)[1].strip()
+
+        class Result:
+            text = fallback
+            response_id = "fallback-copy"
+
+        return Result()
+
+
 class BadSecondaryArticleLLM:
     def complete(self, instructions: str, input_text: str):
         class Result:
@@ -56,6 +85,88 @@ LLM 生成的主文章。
 """
 
         return Result()
+
+
+class GoodMainBadSecondaryLLM:
+    def complete(self, instructions: str, input_text: str):
+        class Result:
+            text = """# 今日 AI 论文与热点文章包
+
+## 主文章：长论文解读
+
+### LLM 生成的长论文解读
+
+这是一篇合格的中文主文章，它围绕论文问题、方法贡献、实验可信度和局限展开。
+
+这段内容足够长，能够通过中文主文章校验，并且不应该因为次文章格式不好而被丢弃。
+
+### 方法贡献
+
+这里继续用中文解释方法贡献、实验边界和近期为什么值得读。
+
+## 次文章 1：AI 热点
+
+- 这是坏的 bullet 输出
+
+## 次文章 2：arXiv 高热度文章速报
+
+- 这也是坏的 bullet 输出
+
+## 来源清单
+
+- source
+"""
+            response_id = "good-main-bad-secondary"
+
+        return Result()
+
+
+class DisconnectingLLM:
+    def complete(self, instructions: str, input_text: str):
+        raise RuntimeError("RemoteProtocolError: Server disconnected without sending a response.")
+
+
+class SecondaryModuleLLM:
+    def __init__(self):
+        self.calls = []
+
+    def complete(self, instructions: str, input_text: str):
+        self.calls.append((instructions, input_text))
+        if "AI 热点" in instructions:
+            text = """## 次文章 1：AI 热点
+
+### LLM 生成的热点判断
+
+今天这组热点更适合当成行业信号，而不是单条新闻。
+
+最值得关注的是测试热点，因为它能帮助读者判断工具链和开发者生态正在怎么变化。
+
+这条消息不应该被写成营销稿，而应该落回到研究、产品和工程实践的影响。
+
+来源，https://example.com/hotspot
+
+如果后续要展开，可以继续看它是否影响评测、复现和应用部署。
+
+我的判断是，这类变化值得持续跟踪，但不要把短期热度写成确定趋势。
+"""
+        else:
+            text = """## 次文章 2：arXiv 高热度文章速报
+
+### LLM 生成的 arXiv 阅读顺序
+
+今天这组论文建议先按学术价值来读。
+
+第一篇是 Test Paper，arXiv:2606.00001，它把一个具体问题拆成了可以比较的实验设置。
+
+这篇适合已经熟悉相关方向的读者先读，重点看问题定义、对照方法和指标口径。
+
+链接，https://arxiv.org/pdf/2606.00001
+
+第二篇可以作为延伸阅读，用来观察同一方向里不同方法的实验边界。
+
+我的判断是，速报不应该写成论文目录，而应该告诉读者先读哪篇、为什么读、是否值得后续展开。
+"""
+        return type("Result", (), {"text": text, "response_id": "secondary-1"})()
 
 
 def markdown_section(markdown: str, marker: str) -> str:
@@ -100,11 +211,12 @@ def test_daily_pipeline_generates_topic_pool_and_draft_package(tmp_path: Path):
 
     article = (package_dir / "article.md").read_text(encoding="utf-8")
     assert "主文章：长论文解读" in article
-    assert "待选择" in article
+    assert "待生成" in article
+    assert "点击“生成长文”后" in article
     assert "次文章 1：AI 热点" in article
     assert "次文章 2：arXiv 高热度文章速报" in article
     assert "来源清单" in article
-    assert "这部分不会自动生成" in article
+    assert "系统会围绕这篇论文生成中文深度解读" in article
 
     html = (package_dir / "article-wechat.html").read_text(encoding="utf-8")
     assert "<article" in html
@@ -117,7 +229,7 @@ def test_daily_pipeline_generates_topic_pool_and_draft_package(tmp_path: Path):
     assert run.draft.assets == []
 
 
-def test_pipeline_generates_long_article_for_user_selected_topic(tmp_path: Path):
+def test_pipeline_creates_pending_workshop_draft_for_user_selected_topic(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store)
     pipeline.run_daily(date="2026-06-20")
@@ -130,12 +242,11 @@ def test_pipeline_generates_long_article_for_user_selected_topic(tmp_path: Path)
 
     package_dir = tmp_path / draft.markdown_path
     article = package_dir.read_text(encoding="utf-8")
-    draft_dir = package_dir.parent
-    assert (draft_dir / "cover.prompt.txt").exists()
-    assert (draft_dir / "figures/mechanism.prompt.txt").exists()
     assert "主文章：长论文解读" in article
-    assert "长上下文模型来了，RAG 为什么还没有过时？" in article
-    assert "适合本科生、硕士研究生重点阅读" in article
+    assert "长上下文与 RAG 的论文争论，核心其实是成本和路由" in article
+    assert "待生成" in article
+    assert "点击“生成长文”后，系统会围绕这篇论文生成中文深度解读" in article
+    assert "适合本科生、硕士研究生重点阅读" not in article
     assert "次文章 1：AI 热点" in article
     assert "次文章 2：arXiv 高热度文章速报" in article
 
@@ -162,10 +273,10 @@ def test_secondary_articles_are_publish_ready_not_source_bullets(tmp_path: Path)
         assert "我的判断：它值得关注的地方" not in section
 
     assert "今天这几条消息，我建议你不要当新闻看" in hotspots
-    assert "今天这组论文，我建议先按选题价值来读" in arxiv
+    assert "今天这组论文，我建议先按学术价值来读" in arxiv
     html = store.read_text(draft.html_path)
     assert "<h3>今天这几条消息，我建议你不要当新闻看</h3>" in html
-    assert "<h3>今天这组论文，我建议先按选题价值来读</h3>" in html
+    assert "<h3>今天这组论文，我建议先按学术价值来读</h3>" in html
     assert "<p>### " not in html
 
 
@@ -183,15 +294,17 @@ def test_bad_llm_secondary_bullet_output_falls_back_to_publish_ready_articles(tm
     assert not any(line.startswith("- ") for line in hotspots.splitlines())
     assert not any(line.startswith("- ") for line in arxiv.splitlines())
     assert "今天这几条消息，我建议你不要当新闻看" in hotspots
-    assert "今天这组论文，我建议先按选题价值来读" in arxiv
+    assert "今天这组论文，我建议先按学术价值来读" in arxiv
 
 
-def test_agent_laboratory_publish_package_uses_verified_sources(tmp_path: Path):
+def test_agent_laboratory_publish_package_uses_verified_sources(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store, llm_provider=BadArticleLLM())
     pipeline.run_daily(date="2026-06-22")
 
     draft = pipeline.draft_topic("topic-agent-lab", date="2026-06-22")
+    draft = pipeline.refresh_module(draft.id, "main", "generate selected long article")
 
     article = store.read_text(draft.markdown_path)
     html = store.read_text(draft.html_path)
@@ -203,17 +316,98 @@ def test_agent_laboratory_publish_package_uses_verified_sources(tmp_path: Path):
     assert "https://arxiv.org/pdf/2501.04227" in combined
     assert "https://github.com/SamuelSchmidgall/AgentLaboratory" in combined
     assert "arXiv:2501.04227" in article
-    assert "2025 年 1 月" in article
-    assert "我今天重新翻到 Agent Laboratory" in article
-    assert "不是一个灵感机器" in article
+    assert "论文问题、方法流程、实验可信度和局限" in article
+    assert "方法贡献" in article
+    assert "配图建议" in article
     assert "example.com" not in combined
     assert "2606.20101" not in combined
     assert "github.com/example" not in combined
     assert "Rerun note" not in combined
     assert "待 LLM" not in article
-    assert "配图建议" not in article
     assert "The guidance" not in article
     assert "The paper reports" not in article
+
+
+def test_live_arxiv_fallback_article_is_publishable_chinese_without_connector_placeholders():
+    abstract = (
+        "Mainstream LLM serving systems reuse prefix work mainly through paged or radix key-value (KV) caches. "
+        "This is highly effective for high-throughput serving, but it manages only one positional fragment of "
+        "execution state. We study low-latency, small-batch, on-device physical-AI serving, where interactive "
+        "LLM agents and robot policies repeatedly branch, reset, interrupt, and re-enter under tight budgets."
+    )
+    topic = Topic(
+        id="topic-live-2606-20537",
+        slug="execution-state-capsules",
+        cluster_id="cluster-live",
+        paper_id="paper-2606-20537",
+        title="Execution-State Capsules: Graph-Bound Execution-State Checkpoint and Restore for Low-Latency, Small-Batch, On-Device Physical-AI Serving",
+        angle=abstract,
+        article_type="long_paper",
+        score_total=88,
+        score_detail={
+            "heat": ScoreItem(value=88, reason="来自 arXiv 实时信源。"),
+            "relevance": ScoreItem(value=90, reason="与端侧 LLM serving 和物理 AI 有关。"),
+            "writeability": ScoreItem(value=86, reason="摘要足以形成论文解读入口。"),
+            "conversion": ScoreItem(value=84, reason="可延伸到系统机制和实验可信度分析。"),
+        },
+        business_hook="判断是否适合展开成端侧 LLM serving 的系统论文深度解读。",
+        source_count=1,
+        evidence_risk="medium",
+        recommendation=abstract,
+        signal_ids=["signal-live-2606-20537"],
+        created_at="2026-06-22T07:50:00Z",
+    )
+    paper = Paper(
+        id="paper-2606-20537",
+        arxiv_id="2606.20537",
+        title=topic.title,
+        authors=["A. Researcher"],
+        abstract=abstract,
+        pdf_url="https://arxiv.org/pdf/2606.20537",
+        published_at="2026-06-18T00:00:00Z",
+        categories=["cs.LG"],
+        method_summary="待 LLM/人工解析：MVP connector 已保留论文摘要和 PDF 链接。",
+        experiment_summary="待 LLM/人工解析：需要阅读论文实验章节后补充。",
+        limitations="待 LLM/人工解析：发布前必须人工确认局限性。",
+        replication_value=72,
+        extension_topics=["基于该论文摘要提炼核心研究问题", "围绕方法贡献和实验可信度设计解读角度"],
+    )
+    signal = Signal(
+        id="signal-live-2606-20537",
+        source_id="arxiv-cs-ai",
+        kind="paper",
+        title=topic.title,
+        summary=abstract,
+        url="https://arxiv.org/abs/2606.20537",
+        published_at="2026-06-18T00:00:00Z",
+        tags=["arxiv"],
+        heat=88,
+    )
+    evidence = [
+        EvidenceItem(
+            id="evidence-live-1",
+            topic_id=topic.id,
+            source_url=signal.url,
+            source_title=topic.title,
+            claim=abstract,
+            snippet=abstract,
+            confidence="high",
+            risk_note="实验结论需要人工阅读 PDF 后确认细节和指标。",
+            created_at="2026-06-22T07:50:00Z",
+        )
+    ]
+
+    article = build_article_markdown(topic, paper, evidence, [], [paper])
+    main = markdown_section(article, "## 主文章：长论文解读")
+
+    assert article_main_is_chinese(article)
+    assert "> Mainstream LLM serving systems" not in main
+    assert "待 LLM" not in article
+    assert "MVP connector" not in article
+    assert "Agent 论文和工具越来越多以后" not in main
+    assert "research流程里最容易被低估" not in main
+    assert "端侧" in main or "低延迟" in main
+    assert "arXiv:2606.20537" in main
 
 
 def test_pipeline_reruns_specific_draft_stage_without_losing_previous_package(tmp_path: Path):
@@ -242,14 +436,16 @@ def test_pipeline_reruns_text_stages_with_targeted_content_changes(tmp_path: Pat
     assert titled.title != run.draft.title
     assert title_markdown.splitlines()[0].startswith("# ")
     assert title_markdown != original_markdown
+    assert titled.title in markdown_section(title_markdown, "## 主文章：长论文解读")
     assert "Rerun note" not in title_markdown
 
     outlined = pipeline.regenerate_draft(run.draft.id, stage="outline", reason="tighten the lead")
     outline_markdown = store.read_text(outlined.markdown_path)
+    outline_main = markdown_section(outline_markdown, "## 主文章：长论文解读")
 
     assert outlined.version == 3
-    assert "## 编辑导语" in outline_markdown
-    assert "tighten the lead" in outline_markdown
+    assert "### 编辑导语" in outline_main
+    assert "tighten the lead" in outline_main
     assert "Rerun note" not in outline_markdown
 
     articled = pipeline.regenerate_draft(run.draft.id, stage="article", reason="full rewrite")
@@ -259,9 +455,10 @@ def test_pipeline_reruns_text_stages_with_targeted_content_changes(tmp_path: Pat
     assert article_markdown != original_markdown
     assert "## 主文章：长论文解读" in article_markdown
     assert "待选择" not in article_markdown
-    assert "我今天重新翻到 Agent Laboratory" in article_markdown
+    assert "这篇论文到底想解决什么问题" in article_markdown
+    assert "方法贡献" in article_markdown
     assert "重跑编辑札记" in article_markdown
-    assert "对于正在找 AI 论文方向的同学" in article_markdown
+    assert "论文问题" in article_markdown
     assert "Rerun note" not in article_markdown
 
 
@@ -330,7 +527,8 @@ def test_pipeline_reruns_review_stage_refreshes_checklist(tmp_path: Path):
     assert "final factual pass" in checklist
 
 
-def test_pipeline_reruns_image_stage_creates_assets_when_missing(tmp_path: Path):
+def test_pipeline_reruns_image_stage_creates_assets_when_missing(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store)
     run = pipeline.run_daily(date="2026-06-20")
@@ -340,10 +538,13 @@ def test_pipeline_reruns_image_stage_creates_assets_when_missing(tmp_path: Path)
     assert updated.last_rerun_stage == "cover"
     assert any(asset.kind == "cover" for asset in updated.assets)
     cover = next(asset for asset in updated.assets if asset.kind == "cover")
+    assert cover.provider == "image2"
+    assert cover.provider_request_id == "resp-test-image"
     assert (tmp_path / cover.path).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_refresh_main_module_generates_only_main_article_content(tmp_path: Path):
+def test_refresh_main_module_generates_only_main_article_content(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store)
     run = pipeline.run_daily(date="2026-06-20")
@@ -360,13 +561,184 @@ def test_refresh_main_module_generates_only_main_article_content(tmp_path: Path)
 
     assert updated.last_rerun_stage == "refresh:main"
     assert "待选择" not in main_section
-    assert "我今天重新翻到 Agent Laboratory" in main_section
-    assert "不是一个灵感机器" in main_section
+    assert "这篇论文到底想解决什么问题" in main_section
+    assert "方法贡献" in main_section
+    assert "配图建议" in main_section
     assert after_hotspots == before_hotspots
     assert after_arxiv == before_arxiv
 
 
-def test_pipeline_reruns_image_stage_without_corrupting_png(tmp_path: Path):
+def test_refresh_main_module_generates_image2_assets_for_deep_paper_analysis(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store)
+    run = pipeline.run_daily(date="2026-06-20")
+
+    updated = pipeline.refresh_module(run.draft.id, "main", reason="generate selected module")
+
+    assert {asset.kind for asset in updated.assets} == {"cover", "mechanism"}
+    assert all(asset.provider == "image2" for asset in updated.assets)
+    assert all(asset.provider_request_id == "resp-test-image" for asset in updated.assets)
+    assert (tmp_path / next(asset.path for asset in updated.assets if asset.kind == "cover")).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert (tmp_path / next(asset.path for asset in updated.assets if asset.kind == "mechanism")).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    article = store.read_text(updated.markdown_path)
+    assert "配图建议" in article
+
+
+def test_refresh_main_module_records_llm_exception_when_falling_back(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store, llm_provider=DisconnectingLLM())
+    run = pipeline.run_daily(date="2026-06-20")
+
+    updated = pipeline.refresh_module(run.draft.id, "main", reason="generate selected module")
+
+    article = store.read_text(updated.markdown_path)
+    assert "这篇论文到底想解决什么问题" in article
+    assert "RemoteProtocolError" in updated.generation_error
+    assert "Server disconnected without sending a response" in updated.generation_error
+
+
+def test_refresh_main_module_rejects_llm_output_that_copies_fallback_template(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store, llm_provider=FallbackCopyingLLM())
+    run = pipeline.run_daily(date="2026-06-20")
+
+    updated = pipeline.refresh_module(run.draft.id, "main", reason="generate selected module")
+
+    article = store.read_text(updated.markdown_path)
+    assert "长文刷新札记" not in article
+    assert "copied local fallback" in updated.generation_error
+
+
+def test_refresh_main_module_keeps_article_when_visual_asset_generation_fails(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FailingImageProvider())
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store, llm_provider=GoodMainBadSecondaryLLM())
+    run = pipeline.run_daily(date="2026-06-20")
+
+    updated = pipeline.refresh_module(run.draft.id, "main", reason="generate selected module")
+
+    article = store.read_text(updated.markdown_path)
+    assert "LLM 生成的长论文解读" in article
+    assert updated.last_rerun_stage == "refresh:main"
+    assert "Image2 generation failed" in updated.generation_error
+    assert "image relay unavailable" in updated.generation_error
+
+
+def test_refresh_main_module_accepts_good_main_even_when_llm_secondary_modules_are_bad(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store, llm_provider=GoodMainBadSecondaryLLM())
+    run = pipeline.run_daily(date="2026-06-20")
+    before_markdown = store.read_text(run.draft.markdown_path)
+    before_hotspots = markdown_section(before_markdown, "## 次文章 1：AI 热点")
+    before_arxiv = markdown_section(before_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    updated = pipeline.refresh_module(run.draft.id, "main", reason="generate selected module")
+
+    markdown = store.read_text(updated.markdown_path)
+    main = markdown_section(markdown, "## 主文章：长论文解读")
+    assert "LLM 生成的长论文解读" in main
+    assert "坏的 bullet 输出" not in markdown
+    assert markdown_section(markdown, "## 次文章 1：AI 热点").strip() == before_hotspots.strip()
+    assert markdown_section(markdown, "## 次文章 2：arXiv 高热度文章速报").strip() == before_arxiv.strip()
+    assert updated.generation_error == ""
+
+
+def test_refresh_hotspots_module_uses_llm_without_touching_other_modules(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    llm = SecondaryModuleLLM()
+    pipeline = DailyPipeline(store=store)
+    run = pipeline.run_daily(date="2026-06-20")
+    draft = pipeline.regenerate_draft(run.draft.id, stage="article", reason="write first")
+    pipeline.llm_provider = llm
+    original_markdown = store.read_text(draft.markdown_path)
+    original_main = markdown_section(original_markdown, "## 主文章：长论文解读")
+    original_arxiv = markdown_section(original_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    updated = pipeline.refresh_module(draft.id, "hotspots", reason="refresh AI hotspots")
+
+    markdown = store.read_text(updated.markdown_path)
+    hotspots = markdown_section(markdown, "## 次文章 1：AI 热点")
+    assert "LLM 生成的热点判断" in hotspots
+    assert markdown_section(markdown, "## 主文章：长论文解读").strip() == original_main.strip()
+    assert markdown_section(markdown, "## 次文章 2：arXiv 高热度文章速报").strip() == original_arxiv.strip()
+    assert "只改写 AI 热点模块" in llm.calls[0][0]
+    assert updated.generation_error == ""
+
+
+def test_refresh_secondary_module_keeps_previous_main_generation_error_on_success(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    llm = SecondaryModuleLLM()
+    pipeline = DailyPipeline(store=store)
+    run = pipeline.run_daily(date="2026-06-20")
+    run.draft.generation_error = "previous main failure"
+    store.update_draft(run.draft)
+    pipeline.llm_provider = llm
+
+    updated = pipeline.refresh_module(run.draft.id, "hotspots", reason="refresh AI hotspots")
+
+    assert updated.generation_error == "previous main failure"
+
+
+def test_refresh_arxiv_module_uses_llm_without_touching_other_modules(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    llm = SecondaryModuleLLM()
+    pipeline = DailyPipeline(store=store)
+    run = pipeline.run_daily(date="2026-06-20")
+    draft = pipeline.regenerate_draft(run.draft.id, stage="article", reason="write first")
+    pipeline.llm_provider = llm
+    original_markdown = store.read_text(draft.markdown_path)
+    original_main = markdown_section(original_markdown, "## 主文章：长论文解读")
+    original_hotspots = markdown_section(original_markdown, "## 次文章 1：AI 热点")
+
+    updated = pipeline.refresh_module(draft.id, "arxiv", reason="refresh arxiv brief")
+
+    markdown = store.read_text(updated.markdown_path)
+    arxiv = markdown_section(markdown, "## 次文章 2：arXiv 高热度文章速报")
+    assert "LLM 生成的 arXiv 阅读顺序" in arxiv
+    assert markdown_section(markdown, "## 主文章：长论文解读").strip() == original_main.strip()
+    assert markdown_section(markdown, "## 次文章 1：AI 热点").strip() == original_hotspots.strip()
+    assert "只改写 arXiv 速报模块" in llm.calls[0][0]
+    assert updated.generation_error == ""
+
+
+def test_refresh_secondary_modules_leave_visible_change_when_generated_content_matches(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store=store)
+    run = pipeline.run_daily(date="2026-06-20")
+    draft = pipeline.regenerate_draft(run.draft.id, stage="article", reason="write first")
+    original_markdown = store.read_text(draft.markdown_path)
+    original_main = markdown_section(original_markdown, "## 主文章：长论文解读")
+    original_arxiv = markdown_section(original_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    first_hotspots = pipeline.refresh_module(draft.id, "hotspots", reason="refresh visible hotspots")
+    before_second_hotspots = store.read_text(first_hotspots.markdown_path)
+    refreshed_hotspots = pipeline.refresh_module(draft.id, "hotspots", reason="refresh visible hotspots again")
+    hotspots_markdown = store.read_text(refreshed_hotspots.markdown_path)
+    refreshed_hotspots_section = markdown_section(hotspots_markdown, "## 次文章 1：AI 热点")
+
+    assert refreshed_hotspots.last_rerun_stage == "refresh:hotspots"
+    assert hotspots_markdown != before_second_hotspots
+    assert "AI 热点刷新札记" in refreshed_hotspots_section
+    assert markdown_section(hotspots_markdown, "## 主文章：长论文解读") == original_main
+    assert markdown_section(hotspots_markdown, "## 次文章 2：arXiv 高热度文章速报") == original_arxiv
+
+    first_arxiv = pipeline.refresh_module(draft.id, "arxiv", reason="refresh visible arxiv")
+    before_second_arxiv = store.read_text(first_arxiv.markdown_path)
+    refreshed_arxiv = pipeline.refresh_module(draft.id, "arxiv", reason="refresh visible arxiv again")
+    arxiv_markdown = store.read_text(refreshed_arxiv.markdown_path)
+    refreshed_arxiv_section = markdown_section(arxiv_markdown, "## 次文章 2：arXiv 高热度文章速报")
+
+    assert refreshed_arxiv.last_rerun_stage == "refresh:arxiv"
+    assert arxiv_markdown != before_second_arxiv
+    assert "arXiv 速报刷新札记" in refreshed_arxiv_section
+
+
+def test_pipeline_reruns_image_stage_without_corrupting_png(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.Image2Provider.from_env", lambda storage_root=None: FakeImageProvider())
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store=store)
     pipeline.run_daily(date="2026-06-20")

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 
 class ProviderConfigInput(BaseModel):
+    provider: str = "relay"
     base_url: str = ""
     api_key: str = ""
     model: str = ""
@@ -22,6 +23,7 @@ class ProvidersSettingsInput(BaseModel):
 
 
 class ProviderConfigPublic(BaseModel):
+    provider: str = "relay"
     base_url: str = ""
     model: str = ""
     configured: bool = False
@@ -69,6 +71,7 @@ class SettingsStore:
 
 def _merge_config(existing: Dict[str, Any], incoming: ProviderConfigInput, include_image_fields: bool) -> Dict[str, str]:
     merged = {
+        "provider": incoming.provider or existing.get("provider", "relay"),
         "base_url": incoming.base_url,
         "api_key": incoming.api_key or existing.get("api_key", ""),
         "model": incoming.model,
@@ -86,6 +89,7 @@ def _merge_config(existing: Dict[str, Any], incoming: ProviderConfigInput, inclu
 
 def _public_config(config: Dict[str, Any], include_image_fields: bool) -> ProviderConfigPublic:
     public = ProviderConfigPublic(
+        provider=config.get("provider", "relay"),
         base_url=config.get("base_url", ""),
         model=config.get("model", ""),
         configured=bool(config.get("base_url") and config.get("api_key") and config.get("model")),

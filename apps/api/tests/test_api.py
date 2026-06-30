@@ -7,8 +7,12 @@ from fastapi.testclient import TestClient
 from ai_radar.api import create_app
 
 
-def make_client(tmp_path: Path, http_client: Optional[httpx.Client] = None) -> TestClient:
-    app = create_app(storage_root=tmp_path, http_client=http_client)
+def make_client(
+    tmp_path: Path,
+    http_client: Optional[httpx.Client] = None,
+    auto_refresh_on_startup: bool = True,
+) -> TestClient:
+    app = create_app(storage_root=tmp_path, http_client=http_client, auto_refresh_on_startup=auto_refresh_on_startup)
     return TestClient(app)
 
 
@@ -118,7 +122,20 @@ def test_can_generate_long_article_from_user_selected_topic(tmp_path: Path):
 
     detail = client.get(f"/api/drafts/{draft['id']}")
     assert detail.status_code == 200
-    assert "长上下文模型来了，RAG 为什么还没有过时？" in detail.json()["markdown"]
+    assert "长上下文与 RAG 的论文争论，核心其实是成本和路由" in detail.json()["markdown"]
+
+
+def test_refresh_module_api_reports_runtime_errors_as_bad_gateway(tmp_path: Path, monkeypatch):
+    def fail_refresh_module(self, draft_id: str, module: str, reason: str = ""):
+        raise RuntimeError("Image2 generation failed: image relay unavailable")
+
+    monkeypatch.setattr("ai_radar.pipeline.DailyPipeline.refresh_module", fail_refresh_module)
+    client = make_client(tmp_path, auto_refresh_on_startup=False)
+
+    response = client.post("/api/drafts/draft-1/refresh-module", json={"module": "main"})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Image2 generation failed: image relay unavailable"
 
 
 def test_jobs_and_sources_endpoints(tmp_path: Path):
@@ -159,3 +176,35 @@ def test_jobs_and_sources_endpoints(tmp_path: Path):
     canceled = client.post(f"/api/jobs/{job_id}/cancel")
     assert canceled.status_code == 200
     assert canceled.json()["status"] == "canceled"
+
+
+def test_live_source_failure_returns_api_error_without_creating_run(tmp_path: Path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="source down")
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = make_client(tmp_path, http_client=http_client, auto_refresh_on_startup=False)
+    client.app.state.pipeline.live_sources = True
+
+    response = client.get("/api/radar/today?date=2026-06-20")
+
+    assert response.status_code == 502
+    assert "Live source refresh failed" in response.json()["detail"]
+    assert client.app.state.pipeline.store.get_run("2026-06-20") is None
+
+
+def test_sources_endpoint_returns_recorded_failures_after_strict_live_run_error(tmp_path: Path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="source down")
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = make_client(tmp_path, http_client=http_client, auto_refresh_on_startup=False)
+    client.app.state.pipeline.live_sources = True
+    client.get("/api/radar/today?date=2026-06-20")
+
+    sources = client.get("/api/sources?date=2026-06-20")
+
+    assert sources.status_code == 200
+    payload = sources.json()
+    assert any(source["status"] == "failed" for source in payload)
+    assert any("503" in (source["last_error"] or "") for source in payload)

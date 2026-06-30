@@ -28,6 +28,7 @@ class Image2Provider:
         output_format: str = "png",
         timeout_seconds: float = 4,
         connect_timeout_seconds: float = 2,
+        max_retries: int = 0,
         client: Optional[httpx.Client] = None,
     ):
         self.base_url = base_url.rstrip("/")
@@ -36,6 +37,7 @@ class Image2Provider:
         self.size = size
         self.quality = quality
         self.output_format = output_format
+        self.max_retries = max(0, max_retries)
         self.client = client or httpx.Client(timeout=httpx.Timeout(timeout_seconds, connect=connect_timeout_seconds))
 
     @classmethod
@@ -59,31 +61,44 @@ class Image2Provider:
             size=settings.get("size") or os.getenv("IMAGE2_SIZE", "1536x1024"),
             quality=settings.get("quality") or os.getenv("IMAGE2_QUALITY", "high"),
             output_format=settings.get("output_format") or os.getenv("IMAGE2_OUTPUT_FORMAT", "png"),
-            timeout_seconds=float(settings.get("timeout_seconds") or os.getenv("IMAGE2_TIMEOUT_SECONDS", "90")),
+            timeout_seconds=float(settings.get("timeout_seconds") or os.getenv("IMAGE2_TIMEOUT_SECONDS", "240")),
             connect_timeout_seconds=float(settings.get("connect_timeout_seconds") or os.getenv("IMAGE2_CONNECT_TIMEOUT_SECONDS", "10")),
+            max_retries=int(settings.get("max_retries") or os.getenv("IMAGE2_MAX_RETRIES", "1")),
         )
 
     def generate(self, prompt: str, output_path: Path) -> ImageResult:
-        response = self.client.post(
-            f"{self.base_url}/responses",
-            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            json={
-                "model": self.model,
-                "input": prompt,
-                "tools": [
-                    {
-                        "type": "image_generation",
-                        "size": self.size,
-                        "quality": self.quality,
-                        "format": self.output_format,
-                    }
-                ],
-                "tool_choice": {"type": "image_generation"},
-            },
-        )
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.client.post(
+                    f"{self.base_url}/responses",
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": self.model,
+                        "input": prompt,
+                        "tools": [
+                            {
+                                "type": "image_generation",
+                                "size": self.size,
+                                "quality": self.quality,
+                                "format": self.output_format,
+                            }
+                        ],
+                        "tool_choice": {"type": "image_generation"},
+                    },
+                )
+                break
+            except (httpx.TimeoutException, httpx.TransportError) as error:
+                last_error = error
+                if attempt >= self.max_retries:
+                    raise
+        else:
+            raise RuntimeError(f"Image2 request failed: {last_error}")
         response.raise_for_status()
         payload = response.json()
-        output = next(item for item in payload.get("output", []) if item.get("type") == "image_generation_call")
+        output = next((item for item in payload.get("output", []) if item.get("type") == "image_generation_call"), None)
+        if not output or not output.get("result"):
+            raise RuntimeError("Image2 response did not include an image_generation_call result")
         image_bytes = base64.b64decode(output["result"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(image_bytes)

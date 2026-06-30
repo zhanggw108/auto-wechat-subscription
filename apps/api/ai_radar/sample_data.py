@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import List
 
 from .models import Paper, Signal, Source
@@ -12,23 +13,29 @@ def seed_sources(date: str) -> List[Source]:
             id="source-arxiv-cs-ai",
             name="arXiv cs.AI / cs.LG",
             type="arxiv",
-            url="https://export.arxiv.org/api/query?search_query=cat:cs.AI",
+            url=os.getenv(
+                "AI_RADAR_ARXIV_URL",
+                "https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=10",
+            ),
             last_success_at=created_at,
             created_at=created_at,
         ),
         Source(
             id="source-ai-news-radar",
-            name="AI News Radar",
+            name="AI HOT RSS",
             type="rss",
-            url="https://example.com/ai-news-radar.xml",
+            url=os.getenv("AI_RADAR_NEWS_RSS_URL", "https://aihot.virxact.com/feed.xml"),
             last_success_at=created_at,
             created_at=created_at,
         ),
         Source(
             id="source-github-trending",
-            name="GitHub AI Trending",
+            name="GitHub AI Repository Search",
             type="github",
-            url="https://github.com/trending/python?since=daily",
+            url=os.getenv(
+                "AI_RADAR_GITHUB_SEARCH_URL",
+                "https://api.github.com/search/repositories?q=topic:artificial-intelligence+language:python&sort=updated&order=desc&per_page=10",
+            ),
             last_success_at=created_at,
             created_at=created_at,
         ),
@@ -36,7 +43,7 @@ def seed_sources(date: str) -> List[Source]:
             id="source-official-blogs",
             name="Official AI Blogs",
             type="rss",
-            url="https://openai.com/news/rss.xml",
+            url=os.getenv("AI_RADAR_OFFICIAL_BLOGS_RSS_URL", "https://openai.com/news/rss.xml"),
             last_success_at=created_at,
             created_at=created_at,
         ),
@@ -82,9 +89,9 @@ def seed_papers(date: str) -> List[Paper]:
             ),
             replication_value=88,
             extension_topics=[
-                "面向毕业论文的 agent 实验设计助手",
+                "研究型 agent 如何拆解科研流程",
                 "研究型 agent 的证据约束与幻觉评测",
-                "多 agent 协作在 baseline 选择中的可靠性",
+                "多 agent 协作在研究任务规划中的可靠性",
             ],
         ),
         Paper(
@@ -102,9 +109,9 @@ def seed_papers(date: str) -> List[Paper]:
             categories=["cs.CL", "cs.IR"],
             method_summary="论文在多个公开数据集上比较 RAG 和长上下文 LLM，再用模型自我反思来决定每个问题走检索路径还是长上下文路径。",
             experiment_summary="论文报告说，在资源充足时，长上下文模型经常更强；但 RAG 的成本优势和路由效率仍然让它很难被简单淘汰。",
-            limitations="The conclusions depend on the tested datasets and models; students should re-run newer model baselines before treating it as settled.",
+            limitations="The conclusions depend on the tested datasets and models; newer model families should be checked before treating it as settled.",
             replication_value=82,
-            extension_topics=["长上下文模型中的检索必要性", "RAG 引用可信度评测", "课程论文中的消融实验设计"],
+            extension_topics=["长上下文模型中的检索必要性", "RAG 引用可信度评测", "长上下文与检索路由的消融实验设计"],
         ),
     ]
 
@@ -117,7 +124,7 @@ def seed_signals(date: str) -> List[Signal]:
             source_id="source-arxiv-cs-ai",
             kind="paper",
             title="Agent Laboratory shows how research agents can structure literature review and experiments",
-            summary="Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合拿来讨论研究型 agent 到底能帮学生做什么。",
+            summary="Agent Laboratory 把科研助理拆成文献综述、实验和报告写作几个阶段，适合讨论研究型 agent 的流程边界和证据约束。",
             url="https://arxiv.org/abs/2501.04227",
             published_at="2025-01-08T01:58:42Z",
             tags=["agents", "research-workflow", "paper"],
@@ -176,8 +183,8 @@ def seed_signals(date: str) -> List[Signal]:
             id="signal-github-evalkit",
             source_id="source-github-trending",
             kind="repo",
-            title="OpenAI Evals remains a useful baseline for model evaluation workflows",
-            summary="OpenAI Evals 仓库给了学生一个具体入口，可以从数据集、grader 和回归式模型检查开始搭评测 baseline。",
+            title="OpenAI Evals remains a useful reference for model evaluation workflows",
+            summary="OpenAI Evals 仓库提供了评测工作流参考，可以从数据集、grader 和回归式模型检查理解评测系统如何落地。",
             url="https://github.com/openai/evals",
             published_at=published,
             tags=["github", "evals", "tooling"],
@@ -188,8 +195,8 @@ def seed_signals(date: str) -> List[Signal]:
             id="signal-product-agent-builder",
             source_id="source-ai-news-radar",
             kind="product",
-            title="LangGraph gives agent workflows a concrete engineering baseline",
-            summary="LangGraph 关注持久执行、状态管理和可控 agent workflow，适合作为可复现 agent 工程的参考基线。",
+            title="LangGraph gives agent workflows a concrete engineering reference",
+            summary="LangGraph 关注持久执行、状态管理和可控 agent workflow，适合作为观察 agent 工程化趋势的热点信号。",
             url="https://github.com/langchain-ai/langgraph",
             published_at=published,
             tags=["product", "agents", "debugging"],

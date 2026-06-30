@@ -2,17 +2,20 @@
 
 ## 1. 架构目标
 
-本系统是一个个人使用的 AI 内容生产工作台。它每天自动采集 AI 行业信号、论文、开源项目和热点资讯，筛选出 5-10 个候选选题，并生成一套固定 3 个模块、可审核、可排版、可复制到公众号后台的稿件包。
+本系统是一个个人使用的 AI 论文与行业热点内容生产工作台。它每天 11:00 自动采集 AI 论文、行业信号、开源项目和热点资讯，生成一套版本化 topic pack：5 个论文深度解读候选、5-10 个 AI 热点话题、5-10 篇高热 arXiv 论文，并生成可审核、可排版、可复制到公众号后台的稿件包。
 
 系统不做公众号自动发布。最终发布动作由人工完成。
 
 ### 1.1 MVP 目标
 
-- 每天稳定生成 5-10 个候选选题。
-- 每天自动生成 1 套 3 模块公众号文章包骨架。
-- 主文章固定为长论文解读，但默认待选择；用户阅读选题池后手动选择一个题目，系统才生成长文并使用 image2 生成封面图和机制图。
-- 次文章 1 固定为 AI 热点，自动生成。
-- 次文章 2 固定为 arXiv 高热度文章速报，自动生成。
+- 每天 11:00 稳定生成 1 套 topic pack。
+- 每个 topic pack 固定包含 5 个论文深度解读候选、5-10 个 AI 热点话题、5-10 篇高热 arXiv 论文。
+- 长文章候选必须绑定具体 AI 论文或论文组，不能由 GitHub 项目、新闻或泛话题单独充当。
+- 长文章需要调用 LLM 做详细解读和降 AI 味改写，并使用配置好的 image API 生成封面图和机制图；image API 未配置或失败时，长文章生成失败并暴露错误。
+- AI 热点和 arXiv 论文只生成简要概述，不展开成长文。
+- 每次自动生成和手动刷新都保存 topic pack 版本，支持按日期查看历史话题。
+- 手动刷新支持按模块刷新：长文章、AI 热点、arXiv 论文或全部刷新。
+- 手动刷新必须调用 LLM 生成新角度，并读取历史记录做去重。
 - 每篇稿件保留来源、证据链、审核清单和可复制排版稿。
 - 允许人工对选题、标题、正文、图片和排版进行重跑。
 
@@ -26,26 +29,26 @@
 
 ## 2. 产品定位
 
-每日内容结构固定为：
+每日 topic pack 结构固定为：
 
 ```text
-主文章：长论文解读
-次文章 1：AI 热点
-次文章 2：arXiv 高热度文章速报
+论文深度解读候选：5 个，可详细解读
+AI 热点话题：5-10 个，简要概述
+arXiv 高热论文：5-10 篇，简要概述
 ```
 
-头版文章优先选择高热 AI 论文，重点输出：
+头版文章只从论文深度解读候选中选择，优先选择近期学术价值高、值得公众号深度解读的 AI 论文。这里的“近期高热”不死卡 24 小时或 7 天，而是指近期在研究价值、方法贡献、实验扎实度或社区讨论中明显值得读。重点输出：
 
 - 论文解决的问题。
-- 方法亮点。
+- 方法贡献和技术新意。
 - 实验可信度。
-- 代码和复现价值。
-- 适合学生延伸的论文选题。
-- 对 AI 论文辅导业务的自然转化角度。
+- 局限和风险。
+- 为什么现在值得读。
+- 如果有代码或复现材料，作为辅助证据说明。
 
-次文章 1 用于补充当天 AI 圈动态，承载模型发布、工具更新、GitHub 项目、行业新闻和一句判断。
+AI 热点模块用于补充当天 AI 圈动态，承载模型发布、工具更新、GitHub 项目、行业新闻和一句判断。
 
-次文章 2 用于筛选当天或近 24 小时高热 arXiv 论文，帮助本科生、硕士研究生快速判断哪些论文值得阅读或后续展开成长论文解读。
+arXiv 模块用于筛选近期值得关注的 AI 论文，帮助读者快速判断哪些论文值得加入阅读列表或后续展开成长论文解读。排序以学术价值优先，GitHub 和社区热度只作为辅助信号。
 
 ## 3. 总体架构
 
@@ -56,9 +59,10 @@ flowchart TD
   C --> D["Normalizer 清洗去重"]
   D --> E["Clusterer 聚类"]
   E --> F["Scoring Engine 评分"]
-  F --> G["Topic Pool 选题池"]
+  F --> G["Topic Pack Builder 选题包生成"]
+  U["Topic History 历史版本与去重上下文"] --> G
 
-  G --> H["Paper Analyzer 论文解析"]
+  G --> H["Long Article Analyzer 长文章解析"]
   H --> I["Evidence Pack 证据包"]
   G --> I
   I --> J["Article Planner 文章结构"]
@@ -72,9 +76,12 @@ flowchart TD
 
   M --> Q["WeChat Formatter"]
   P --> Q
-  Q --> R["Draft Package 稿件包"]
+  Q --> R["Topic Pack Version + Draft Package"]
+  R --> U
   R --> S["Web 工作台人工审核"]
   S --> T["复制到公众号后台"]
+  S --> V["Module Refresh 模块级手动刷新"]
+  V --> G
 ```
 
 ## 4. 推荐技术栈
@@ -131,8 +138,8 @@ docs/
 职责：
 
 - 提供工作台所需 REST API。
-- 查询今日雷达、选题池、论文解析、稿件包。
-- 触发人工重跑任务。
+- 查询今日雷达、当前 topic pack、历史 topic pack、论文解析、稿件包。
+- 触发人工重跑任务和模块级手动刷新。
 - 返回任务状态。
 - 管理来源配置和健康状态。
 
@@ -153,6 +160,8 @@ docs/
 - `ingest.normalize_item`
 - `analyze.cluster_signals`
 - `analyze.score_topics`
+- `generate.build_topic_pack`
+- `generate.refresh_topic_pack_module`
 - `analyze.build_paper_profile`
 - `generate.build_evidence_pack`
 - `generate.plan_article`
@@ -166,41 +175,61 @@ docs/
 
 ### 6.3 Frontend 工作台
 
-MVP 保留 3 个核心页面：
+MVP 保留 4 个核心页面：
 
 1. 今日雷达
 2. 选题池
 3. 文章工坊
+4. 历史话题
 
-论文解析台在 MVP 中作为选题详情的一部分出现。素材资产库在 MVP 中先以稿件历史和来源搜索承接，不单独做复杂页面。
+论文解析台在 MVP 中作为选题详情的一部分出现。素材资产库在 MVP 中先以稿件历史、topic pack 历史和来源搜索承接，不单独做复杂页面。
 
 ## 7. 数据流
 
 ### 7.1 每日自动任务
 
 ```text
-07:30 拉取信源
-07:40 清洗、去重、聚类
-07:50 评分并生成候选选题
-08:00 选择头版长论文解析候选
-08:05 构建证据包
-08:10 生成文章结构
-08:15 生成正文草稿
-08:20 khazix-writer 风格改写
-08:25 四层自检
-08:30 生成封面图和机制图
-08:40 输出 Markdown、HTML、来源、审核清单
+11:00 run-scheduled
+11:00 check_sources：抓取 arXiv / RSS / GitHub Search / 官方博客并校验健康状态
+11:02 run_daily --live-sources：只在 source gate 全部健康后写入今日 run
+11:05 清洗、去重、评分，生成 5-10 个真实信源选题
+11:10 调用 LLM 生成 topic pack，并校验 5 / 5-10 / 5-10 三个模块数量
+11:15 用户从 topic pack 或选题池选择长文章后生成详细解读和证据包
+11:20 调用 image2 生成封面图和机制图
+11:25 输出 Markdown、HTML、来源、审核清单和图片资产
+11:30 保存 topic pack version、draft version 和稿件包
 ```
 
-时间可以配置。失败任务必须可重试，且不能影响已完成阶段的结果。
+时间可以配置。任一启用信源或 provider 失败都会让当前命令非零退出；系统必须暴露错误、保留上一轮成功数据，并允许修复后重试同一阶段。
 
-### 7.2 人工审核流
+### 7.2 模块级手动刷新流
+
+```text
+用户选择刷新模块：long_articles / ai_hotspots / arxiv_papers / all
+读取当前 topic pack version
+读取当天历史版本、已发布话题、已拒绝话题和相似角度
+构建 LLM 去重上下文
+调用 LLM 生成指定模块的新内容
+校验数量、来源和去重结果
+未刷新模块从上一版复制
+创建新的 topic pack version
+前端重新拉取当前 topic pack 和稿件包
+```
+
+约束：
+
+- 手动刷新必须调用 LLM，不允许只在固定 seed 选题里切换。
+- 刷新失败不覆盖上一版成功结果。
+- 每次刷新都记录 trigger、module、prompt 摘要、response id 和生成结果。
+
+### 7.3 人工审核流
 
 ```text
 打开今日稿件包
-查看候选选题和评分依据
+查看 topic pack 三个模块和评分依据
 查看头版文章证据包
 编辑标题、摘要、正文
+按需刷新长文章 / AI 热点 / arXiv 论文模块
 按需重跑标题/正文/图片/排版
 查看审核清单
 复制 HTML 或 Markdown 到公众号后台
@@ -299,7 +328,7 @@ MVP 保留 3 个核心页面：
 
 ### 8.6 topics
 
-候选选题。
+标准化后的单个选题或条目。长文章、AI 热点和 arXiv 论文都可以落到 topics，但必须通过 `topic_pack_items` 绑定到某个版本。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -312,10 +341,56 @@ MVP 保留 3 个核心页面：
 | status | enum | candidate, selected, drafted, published, rejected |
 | score_total | numeric | 总分 |
 | score_detail | jsonb | 四项评分和解释 |
-| business_hook | text | 业务转化点 |
+| business_hook | text | 解读价值点 |
+| dedupe_key | text | 标题、URL、arXiv ID、实体和角度组合出的去重 key |
+| angle_hash | text | 写作角度语义 hash |
 | created_at | timestamptz | 创建时间 |
 
-### 8.7 evidence_items
+### 8.7 topic_pack_versions
+
+每日选题包版本表。每次 11:00 自动生成或手动刷新都创建一条记录。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| date | date | 所属日期 |
+| version | int | 当天版本号，从 1 递增 |
+| trigger | enum | scheduled, manual |
+| refreshed_module | enum | all, long_articles, ai_hotspots, arxiv_papers |
+| status | enum | generating, ready, failed |
+| llm_prompt_summary | text | prompt 摘要，不保存敏感 key |
+| llm_response_id | text | LLM response id |
+| previous_version_id | uuid | 手动刷新时指向上一版 |
+| created_at | timestamptz | 创建时间 |
+
+### 8.8 topic_pack_items
+
+topic pack 中的模块条目。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| pack_version_id | uuid | 所属 topic pack version |
+| topic_id | uuid | 标准化 topic |
+| module | enum | long_articles, ai_hotspots, arxiv_papers |
+| rank | int | 模块内排序 |
+| title | text | 展示标题 |
+| summary | text | 简要概述 |
+| angle | text | 长文章角度或简要判断 |
+| source_urls | text[] | 来源链接 |
+| arxiv_id | text | arXiv 论文条目可选 |
+| status | enum | candidate, selected, drafted, published, rejected |
+| llm_response_id | text | 生成该条目的 response id |
+| dedupe_key | text | 去重 key |
+| angle_hash | text | 角度 hash |
+
+数量约束：
+
+- `long_articles`: 5 条。
+- `ai_hotspots`: 5-10 条。
+- `arxiv_papers`: 5-10 条。
+
+### 8.9 evidence_items
 
 证据链条，约束文章生成。
 
@@ -331,7 +406,7 @@ MVP 保留 3 个核心页面：
 | risk_note | text | 风险说明 |
 | created_at | timestamptz | 创建时间 |
 
-### 8.8 drafts
+### 8.10 drafts
 
 稿件主表。
 
@@ -339,6 +414,8 @@ MVP 保留 3 个核心页面：
 | --- | --- | --- |
 | id | uuid | 主键 |
 | topic_id | uuid | 选题 |
+| pack_version_id | uuid | 来源 topic pack version |
+| module | enum | long_articles, ai_hotspots, arxiv_papers |
 | title | text | 当前标题 |
 | subtitle | text | 副标题 |
 | status | enum | generating, review, ready, published, rejected |
@@ -350,7 +427,7 @@ MVP 保留 3 个核心页面：
 | created_at | timestamptz | 创建时间 |
 | updated_at | timestamptz | 更新时间 |
 
-### 8.9 draft_assets
+### 8.11 draft_assets
 
 图片和附件。
 
@@ -368,7 +445,7 @@ MVP 保留 3 个核心页面：
 | provider_request_id | text | 中转站请求 ID |
 | created_at | timestamptz | 创建时间 |
 
-### 8.10 jobs
+### 8.12 jobs
 
 后台任务状态。
 
@@ -402,15 +479,15 @@ MVP 保留 3 个核心页面：
 
 ### 9.2 Relevance
 
-衡量是否适合 AI 论文辅导业务。
+衡量论文或信号的 AI 研究价值。
 
 因子：
 
 - 是否有明确研究问题。
 - 是否有可解释方法。
-- 是否有可复现实验。
-- 是否适合学生做选题延伸。
-- 是否关联模型、Agent、多模态、RAG、推理、训练、评测等高需求方向。
+- 是否有扎实实验、对比基线或清楚的评测设置。
+- 是否可能影响近期 AI 研究讨论。
+- 是否关联 LLM、多模态、生成模型、AI safety、推理效率、训练方法、评测、AI coding、AI4Science、机器人、世界模型等 AI 方向。
 
 ### 9.3 Writeability
 
@@ -423,16 +500,16 @@ MVP 保留 3 个核心页面：
 - 是否能拆成“问题-方法-实验-局限-启发”。
 - 是否有配图空间。
 
-### 9.4 Conversion
+### 9.4 Academic Value
 
-衡量是否能自然引导咨询或业务转化。
+衡量是否值得进一步做深度解读。
 
 因子：
 
-- 是否能延伸出论文选题。
-- 是否能引导实验复现、baseline、创新点设计。
-- 是否能体现专业判断。
-- 是否避免硬广感。
+- 论文贡献是否足够清楚。
+- 实验可信度是否足够讨论。
+- 是否能帮助读者理解一个研究趋势、方法分歧或技术瓶颈。
+- 是否有足够来源支撑，避免只凭标题写判断。
 
 ## 10. 文章生成链路
 
@@ -450,33 +527,89 @@ sources.md               来源清单
 risk-notes.md            风险和不确定点
 ```
 
-### 10.2 长论文解析模板
+### 10.2 Topic Pack LLM 生成
+
+topic pack 生成必须调用 LLM，并要求返回结构化 JSON。后端负责做 schema 校验、数量校验和去重校验。
+
+输入上下文：
+
+- 近期 signals、papers、repos、news。论文候选不死卡 24 小时，但必须保持近期相关性。
+- 当天历史 topic pack versions。
+- 历史已发布、已拒绝、已使用的话题。
+- 已出现标题、URL、arXiv ID、实体和 angle hash。
+- 模块目标数量。
+
+输出结构：
+
+```json
+{
+  "long_articles": [],
+  "ai_hotspots": [],
+  "arxiv_papers": []
+}
+```
+
+校验规则：
+
+- `long_articles` 必须 5 条，且每条必须绑定 arXiv ID、论文 URL 或论文组来源。
+- `ai_hotspots` 必须 5-10 条。
+- `arxiv_papers` 必须 5-10 条。
+- GitHub repo、产品动态和行业新闻不能单独进入 `long_articles`，只能进入 `ai_hotspots` 或作为论文条目的辅助来源。
+- 同一 topic pack 内不能重复标题、URL、arXiv ID 或高度相似角度。
+- 手动刷新模块时，新模块不能重复当天历史版本已出现的同质条目。
+
+### 10.3 长论文解析模板
 
 头版文章建议结构：
 
 ```text
 标题
-导语：为什么今天值得看
+导语：为什么这篇论文近期值得看
 1. 这篇论文到底想解决什么问题
-2. 它的方法亮点在哪里
+2. 它的方法贡献在哪里
 3. 实验结果能不能信
-4. 代码和复现价值如何
-5. 对学生选题有什么启发
-6. 可以延伸成哪些论文方向
-7. 我的判断
-次文章 1：AI 热点
-次文章 2：arXiv 高热度文章速报
-结尾引导：如果你正在做相关方向，可以从哪些角度切入
+4. 它和已有工作的区别是什么
+5. 局限和风险在哪里
+6. 如果有代码或复现材料，应该怎么看
+7. 我的判断：为什么值得读，是否值得后续展开
+AI 热点模块：简要概述
+arXiv 论文模块：简要概述
 来源清单
 ```
 
-### 10.3 四层自检
+### 10.4 热点和 arXiv 简要概述模板
+
+AI 热点和 arXiv 论文不展开成长文，只输出简要概述。
+
+AI 热点条目：
+
+```text
+标题
+来源
+一句话摘要
+一句判断
+为什么值得关注
+```
+
+arXiv 论文条目：
+
+```text
+论文名
+arXiv 链接
+方向标签
+核心贡献
+实验亮点
+适合谁读
+是否值得后续展开成长文章
+```
+
+### 10.5 四层自检
 
 每篇文章生成后必须通过：
 
 1. 事实风险检查：每个关键事实能否追溯到来源。
 2. AI 味检查：删除报告腔、空泛过渡、模板化表达。
-3. 业务转化检查：转化自然，不硬广。
+3. 学术价值检查：主文章是否围绕论文贡献、实验和局限展开，避免泛泛趋势判断。
 4. 公众号排版检查：标题层级、图片位置、引用和来源完整。
 
 ## 11. image2 中转站适配
@@ -571,24 +704,51 @@ V1 再增加：
 - 来源健康状态。
 - Top 5 热点。
 - 论文 / 新闻 / GitHub / 产品发布分类。
-- 今日推荐头版选题。
+- 今日 topic pack 摘要。
+- 当前版本号、触发方式和生成时间。
 
 ### 12.2 选题池
 
-目标：快速判断系统推荐是否靠谱。
+目标：快速判断系统推荐是否靠谱，并可以按模块刷新。
 
-每张选题卡展示：
+页面分为三个模块：
+
+- 长文章候选：5 个。
+- AI 热点话题：5-10 个。
+- arXiv 高热论文：5-10 篇。
+
+每张卡展示：
 
 - 标题。
 - 推荐文章类型。
 - Heat / Relevance / Writeability / Conversion。
 - 一句话推荐理由。
-- 业务转化角度。
+- 解读价值角度。
 - 来源数量。
 - 证据风险。
-- 操作：选为头版、生成草稿、忽略、稍后。
+- 操作：选为头版、生成草稿、忽略、稍后、标记已发布。
 
-### 12.3 文章工坊
+模块操作：
+
+- 刷新长文章。
+- 刷新 AI 热点。
+- 刷新 arXiv 论文。
+- 刷新全部。
+
+### 12.3 历史话题
+
+目标：回看每天生成过什么，避免后续重复选题。
+
+页面能力：
+
+- 按日期查看 topic pack。
+- 展示同一天的版本列表。
+- 展示每个版本的触发方式、刷新模块、生成时间。
+- 展示该版本内三个模块的全部条目。
+- 查看条目状态：candidate、selected、drafted、published、rejected。
+- 支持从历史条目进入详情或稿件。
+
+### 12.4 文章工坊
 
 目标：在 10-20 分钟内完成审核和复制发布。
 
@@ -600,6 +760,7 @@ V1 再增加：
 
 必须支持：
 
+- 从当前 topic pack 选择长文章。
 - 重跑标题。
 - 重跑导语。
 - 重跑整篇。
@@ -617,6 +778,11 @@ GET  /health
 GET  /api/radar/today
 GET  /api/sources
 POST /api/sources/{id}/refresh
+
+GET  /api/topic-packs?date=YYYY-MM-DD
+GET  /api/topic-packs/current?date=YYYY-MM-DD
+GET  /api/topic-packs/{id}
+POST /api/topic-packs/refresh
 
 GET  /api/topics?date=YYYY-MM-DD
 GET  /api/topics/{id}
@@ -637,6 +803,18 @@ GET  /api/jobs/{id}
 POST /api/jobs/{id}/cancel
 ```
 
+模块刷新请求：
+
+```json
+{
+  "date": "2026-06-22",
+  "module": "long_articles | ai_hotspots | arxiv_papers | all",
+  "reason": "用户可选填写"
+}
+```
+
+返回新的 `TopicPackVersion`，并保留上一版。
+
 重跑接口建议统一：
 
 ```json
@@ -651,6 +829,11 @@ POST /api/jobs/{id}/cancel
 每篇文章输出：
 
 ```text
+storage/topic-packs/YYYY-MM-DD/vNN/
+  topic-pack.json
+  prompt-summary.md
+  dedupe-context.json
+
 storage/drafts/YYYY-MM-DD/topic-slug/
   article.md
   article-wechat.html
@@ -672,7 +855,7 @@ storage/drafts/YYYY-MM-DD/topic-slug/
 
 2. GitHub Repository: Name
    URL:
-   Used for: 代码复现价值
+   Used for: 代码与实验材料价值
 ```
 
 `review-checklist.md` 必须包含：
@@ -681,7 +864,7 @@ storage/drafts/YYYY-MM-DD/topic-slug/
 - [ ] 标题是否准确，不夸大
 - [ ] 论文核心贡献是否有来源支撑
 - [ ] 实验结论是否没有过度推断
-- [ ] 业务转化是否自然
+- [ ] 解读价值是否自然
 - [ ] 图片是否贴合内容
 - [ ] HTML 复制到公众号后台是否正常
 ```
@@ -690,30 +873,38 @@ storage/drafts/YYYY-MM-DD/topic-slug/
 
 ### 15.1 信源失败
 
-- 单个信源失败不阻塞整个日报。
-- 保存 `last_error`。
+- 严格实时信源模式下，任一启用信源失败都会阻塞本次日报生成。
+- 保存 `last_error`，并将失败源标记为 `failed`。
 - 今日雷达展示来源健康状态。
-- 连续失败 3 次后标记为 degraded。
+- 不回退本地样例，不覆盖上一轮成功 run 或 topic pack。
 
 ### 15.2 LLM 失败
 
 - 保存请求摘要和错误信息。
 - 支持从当前阶段重跑。
 - 不覆盖上一版成功稿件。
+- 不覆盖上一版 topic pack。
 - 每次成功生成都增加 draft version。
 
 ### 15.3 图片失败
 
-- 文章生成不依赖图片成功。
-- 图片失败时保留 prompt。
-- 排版稿中使用图片占位符。
-- 用户可单独重跑图片。
+- 图片生成必须调用 image2 provider。
+- image2 未配置、超时或中转站失败时直接返回错误。
+- 不生成本地占位图，不用占位图覆盖上一版成功图片或稿件。
+- 用户可在修复配置或上游状态后单独重跑图片。
 
 ### 15.4 排版失败
 
 - 保留 Markdown。
 - 返回 HTML 转换错误。
 - 支持单独重跑排版。
+
+### 15.5 模块刷新失败
+
+- 手动刷新某个模块失败时，当前 topic pack version 保持不变。
+- 失败 job 保存模块名、原因、prompt 摘要和错误信息。
+- 前端展示错误，并允许用户重试同一模块。
+- 不允许用空模块或重复模块覆盖成功版本。
 
 ## 16. 安全和配置
 
@@ -857,6 +1048,10 @@ PUT /api/drafts/{draft_id}/content
 - 接入 GitHub Search。
 - 完成清洗、去重、聚类。
 - 完成四项评分。
+- 完成 topic pack version 数据模型。
+- 完成 LLM topic pack 生成和 schema 校验。
+- 完成历史去重上下文。
+- 完成模块级手动刷新。
 
 ### Phase 3: 论文解析和证据包
 
@@ -877,6 +1072,8 @@ PUT /api/drafts/{draft_id}/content
 
 - 今日雷达页面。
 - 选题池页面。
+- 历史话题页面。
+- 模块级刷新入口。
 - 文章工坊页面。
 - Markdown 编辑、实时预览、保存和复制。
 - 微信 HTML 预览。
@@ -896,6 +1093,8 @@ PUT /api/drafts/{draft_id}/content
 | 论文解析不准 | 内容可信度下降 | Evidence-first，关键事实必须有来源 |
 | 图片风格不稳定 | 公众号观感不一致 | 固定 prompt 模板，保存 revised prompt |
 | 选题质量不稳 | 每日内容价值下降 | 多维评分和人工选择 |
+| 手动刷新只在旧题里循环 | 用户误以为没刷新 | 手动刷新必须调用 LLM，并把历史版本作为去重上下文 |
+| 历史话题不可追溯 | 后续重复选题，难复盘 | 每次生成和刷新都保存 topic pack version |
 | AI 味过重 | 读者信任下降 | khazix-writer + AI 味自检 |
 | 信源失效 | 今日雷达变空 | 来源健康检查和降级 |
 | 排版复制异常 | 发布耗时变长 | Markdown + HTML 双输出 |
@@ -908,11 +1107,13 @@ PUT /api/drafts/{draft_id}/content
 
 1. 数据模型。
 2. 每日任务链路。
-3. 选题评分。
-4. 证据包。
-5. 长论文解析生成。
-6. 微信 HTML 输出。
-7. 成熟编辑器体验：编辑、预览、保存、复制。
+3. Topic pack version 和历史话题库。
+4. LLM 生成 topic pack 与模块级手动刷新。
+5. 选题评分和去重。
+6. 证据包。
+7. 长论文解析生成。
+8. 微信 HTML 输出。
+9. 成熟编辑器体验：编辑、预览、保存、复制。
 
 第二优先级：
 

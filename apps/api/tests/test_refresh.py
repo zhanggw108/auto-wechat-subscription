@@ -544,6 +544,47 @@ def test_topic_pack_scores_penalize_cross_day_history(tmp_path: Path, monkeypatc
     assert item["score_detail"]["penalties"]["value"] >= 20
 
 
+def test_topic_pack_scores_ignore_same_day_history(tmp_path: Path, monkeypatch):
+    def high_score_seed(run_date: str) -> list[Paper]:
+        papers = _scoreable_test_papers(run_date)
+        return [
+            *papers,
+            papers[0].model_copy(
+                update={
+                    "id": "paper-same-day-history",
+                    "arxiv_id": "2606.99999",
+                    "title": "OpenAI Agent Benchmark with Large-Scale Ablation",
+                    "authors": ["OpenAI Research"],
+                    "abstract": "OpenAI introduces a framework and benchmark for agent evaluation with ablation and large-scale comparison.",
+                    "pdf_url": "https://arxiv.org/pdf/2606.99999",
+                    "categories": ["cs.AI"],
+                    "method_summary": "Agent evaluation framework.",
+                    "experiment_summary": "Benchmark comparison and ablation experiments.",
+                }
+            ),
+        ]
+
+    monkeypatch.setattr("ai_radar.pipeline.seed_papers", high_score_seed)
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=TopicPackLLM())
+    pipeline.refresh_topic_pack("2026-06-30", module="all", reason="first same-day refresh")
+
+    run = pipeline.ensure_daily_run("2026-06-30")
+    pipeline._create_topic_pack_version(
+        run=run,
+        module="all",
+        reason="second same-day refresh",
+        trigger="manual",
+        previous=store.current_topic_pack("2026-06-30"),
+        validate_changed=False,
+    )
+
+    report_path = tmp_path / "topic-packs" / "2026-06-30" / "v02" / "long-article-scores.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    item = next(item for item in report["papers"] if item["arxiv_id"] == "2606.99999")
+    assert item["score_detail"]["penalties"]["value"] == 0
+
+
 def test_topic_pack_refresh_writes_long_article_score_report(tmp_path: Path):
     pipeline = DailyPipeline(JsonStore(tmp_path), llm_provider=TopicPackLLM())
 

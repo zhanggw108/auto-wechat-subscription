@@ -268,6 +268,7 @@ class DailyPipeline:
         return [
             item.model_dump(mode="json")
             for pack in self.store.list_topic_pack_versions()
+            if pack.date < run_date
             for item in [*pack.long_articles, *pack.ai_hotspots, *pack.arxiv_papers]
         ]
 

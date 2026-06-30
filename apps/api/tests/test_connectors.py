@@ -517,6 +517,7 @@ def test_seed_sources_uses_real_defaults_and_allows_url_overrides(monkeypatch):
 
     assert default_sources["source-ai-news-radar"].url != "https://example.com/ai-news-radar.xml"
     assert default_sources["source-ai-news-radar"].url.startswith("https://")
+    assert "max_results=30" in default_sources["source-arxiv-cs-ai"].url
     assert "api.github.com/search/repositories" in default_sources["source-github-trending"].url
 
 

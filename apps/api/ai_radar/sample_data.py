@@ -15,7 +15,7 @@ def seed_sources(date: str) -> List[Source]:
             type="arxiv",
             url=os.getenv(
                 "AI_RADAR_ARXIV_URL",
-                "https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=10",
+                "https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=30",
             ),
             last_success_at=created_at,
             created_at=created_at,

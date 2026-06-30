@@ -130,3 +130,151 @@ def test_score_papers_applies_history_penalty(tmp_path: Path):
 
     assert scores[0].score_detail["penalties"]["value"] >= 20
     assert any("历史" in reason for reason in scores[0].selection_reasons)
+
+
+def test_score_papers_rewards_run_date_freshness(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps({"institutions": [], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2607.00001",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+        published_at="2026-07-01T08:00:00Z",
+    )
+
+    scores = score_papers([paper], signals=[], previous_items=[], config_path=config_path, run_date="2026-07-01")
+
+    assert scores[0].score_detail["freshness_and_heat"]["value"] == 2
+
+
+def test_source_domain_matching_requires_host_boundary(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "institutions": [],
+                "people": [],
+                "source_domains": [{"domain": "openai.com", "weight": 18}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00004",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+    bad_signal = Signal(
+        id="signal-bad",
+        source_id="rss",
+        kind="paper",
+        title=paper.title,
+        summary="",
+        url="https://notopenai.com/research",
+        published_at="2026-06-30T09:00:00Z",
+        heat=10,
+    )
+    good_signal = bad_signal.model_copy(update={"id": "signal-good", "url": "https://research.openai.com/post"})
+
+    bad_score = score_papers([paper], signals=[bad_signal], previous_items=[], config_path=config_path)[0]
+    good_score = score_papers([paper], signals=[good_signal], previous_items=[], config_path=config_path)[0]
+
+    assert bad_score.matched_source_domains == []
+    assert good_score.matched_source_domains == ["openai.com"]
+
+
+def test_history_penalty_normalizes_arxiv_versions(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps({"institutions": [], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00003",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+    previous_items = [{"arxiv_id": "2606.00003v2", "source_urls": [], "dedupe_key": "old"}]
+
+    scores = score_papers([paper], signals=[], previous_items=previous_items, config_path=config_path)
+
+    assert scores[0].score_detail["penalties"]["value"] >= 20
+
+
+def test_history_penalty_matches_current_dedupe_key(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps({"institutions": [], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00007",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+    previous_items = [
+        {
+            "arxiv_id": "",
+            "source_urls": [],
+            "dedupe_key": "agent training framework|2606.00007|https://arxiv.org/abs/2606.00007|https://arxiv.org/pdf/2606.00007",
+        }
+    ]
+
+    scores = score_papers([paper], signals=[], previous_items=previous_items, config_path=config_path)
+
+    assert scores[0].score_detail["penalties"]["value"] >= 20
+
+
+def test_signal_matching_normalizes_arxiv_versions_in_urls(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps({"institutions": [], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00006v2",
+        "Agent Training Framework",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+    signal = Signal(
+        id="signal-arxiv",
+        source_id="rss",
+        kind="paper",
+        title="Different title",
+        summary="",
+        url="https://arxiv.org/abs/2606.00006",
+        published_at="2026-06-30T09:00:00Z",
+        heat=10,
+    )
+
+    scores = score_papers([paper], signals=[signal], previous_items=[], config_path=config_path)
+
+    assert scores[0].matched_signals == ["signal-arxiv"]
+
+
+def test_short_alias_requires_word_boundary(tmp_path: Path):
+    config_path = tmp_path / "influence_sources.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "institutions": [{"name": "MIT", "aliases": ["mit"], "weight": 25}],
+                "people": [],
+                "source_domains": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    paper = make_paper(
+        "2606.00005",
+        "Submit Agent Benchmark",
+        "A framework for agent training with benchmark evaluation and ablation.",
+    )
+
+    scores = score_papers([paper], signals=[], previous_items=[], config_path=config_path)
+
+    assert scores[0].matched_institutions == []

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -177,9 +178,15 @@ def score_papers(
     signals: List[Signal],
     previous_items: List[Mapping[str, object]],
     config_path: Path | None = None,
+    run_date: str | None = None,
 ) -> List[PaperScore]:
     config = load_influence_config(config_path)
-    scores = [_score_one_paper(paper, signals, previous_items, config) for paper in papers if paper.pdf_url or paper.arxiv_id]
+    freshness_date = run_date or _latest_published_date(papers, signals)
+    scores = [
+        _score_one_paper(paper, signals, previous_items, config, freshness_date)
+        for paper in papers
+        if paper.pdf_url or paper.arxiv_id
+    ]
     return sorted(
         scores,
         key=lambda item: (
@@ -197,6 +204,7 @@ def _score_one_paper(
     signals: List[Signal],
     previous_items: List[Mapping[str, object]],
     config: InfluenceConfig,
+    freshness_date: str,
 ) -> PaperScore:
     text = " ".join([paper.title, paper.abstract, " ".join(paper.categories), " ".join(paper.authors)]).lower()
     related_signals = _matched_signals(paper, signals)
@@ -215,7 +223,10 @@ def _score_one_paper(
     method_substance = min(20, 4 + method_hits * 3)
     experiment_strength = min(15, 3 + experiment_hits * 3)
     influence_score = min(25, institution_score + people_score + domain_score)
-    freshness_and_heat = min(10, len(related_signals) * 3 + (2 if paper.published_at.startswith("2026-06-30") else 0))
+    freshness_and_heat = min(
+        10,
+        len(related_signals) * 3 + (2 if freshness_date and paper.published_at.startswith(freshness_date) else 0),
+    )
     writeability = min(5, 2 + int(bool(method_hits)) + int(bool(experiment_hits)) + int(len(paper.abstract) > 300))
     low_ai_penalty = 20 if relevance_hits == 0 else 0
     penalties = min(50, history_penalty + low_ai_penalty)
@@ -283,12 +294,12 @@ def _count_hits(text: str, keywords: Iterable[str]) -> int:
 
 
 def _matched_signals(paper: Paper, signals: List[Signal]) -> List[Signal]:
-    arxiv_id = paper.arxiv_id.lower()
+    arxiv_id = _normalize_arxiv_id(paper.arxiv_id)
     title = paper.title.strip().lower()
     return [
         signal
         for signal in signals
-        if (arxiv_id and arxiv_id in signal.url.lower()) or signal.title.strip().lower() == title
+        if (arxiv_id and _normalize_arxiv_id(signal.url) == arxiv_id) or signal.title.strip().lower() == title
     ]
 
 
@@ -296,7 +307,7 @@ def _match_entries(text: str, entries: List[InfluenceEntry]) -> tuple[List[str],
     matched: List[str] = []
     score = 0
     for entry in entries:
-        if any(alias and alias in text for alias in entry.aliases):
+        if any(_alias_matches(text, alias) for alias in entry.aliases):
             matched.append(entry.name)
             score = max(score, entry.weight)
     return matched, score
@@ -306,24 +317,67 @@ def _match_domains(signals: List[Signal], entries: List[SourceDomainEntry]) -> t
     matched: List[str] = []
     score = 0
     for signal in signals:
-        host = urlparse(signal.url).netloc.lower()
+        host = (urlparse(signal.url).hostname or "").lower().rstrip(".")
         for entry in entries:
-            if entry.domain in host:
+            domain = entry.domain.lower().rstrip(".")
+            if host == domain or host.endswith("." + domain):
                 matched.append(entry.domain)
                 score = max(score, entry.weight)
     return sorted(set(matched)), score
 
 
 def _history_penalty(paper: Paper, previous_items: List[Mapping[str, object]]) -> int:
+    paper_arxiv_id = _normalize_arxiv_id(paper.arxiv_id)
     paper_urls = {paper.pdf_url.rstrip("/"), f"https://arxiv.org/abs/{paper.arxiv_id}".rstrip("/")}
+    paper_dedupe_key = _paper_dedupe_key(paper)
     for item in previous_items:
-        if str(item.get("arxiv_id") or "") == paper.arxiv_id:
+        if paper_arxiv_id and _normalize_arxiv_id(str(item.get("arxiv_id") or "")) == paper_arxiv_id:
+            return 30
+        if _normalize_dedupe(str(item.get("dedupe_key") or "")) == paper_dedupe_key:
             return 30
         raw_urls = item.get("source_urls", [])
         source_urls = {str(url).rstrip("/") for url in raw_urls if str(url).strip()} if isinstance(raw_urls, list) else set()
+        source_arxiv_ids = {_normalize_arxiv_id(url) for url in source_urls}
+        if paper_arxiv_id and paper_arxiv_id in source_arxiv_ids:
+            return 30
         if source_urls.intersection(paper_urls):
             return 30
     return 0
+
+
+def _latest_published_date(papers: List[Paper], signals: List[Signal]) -> str:
+    dates = [item.published_at[:10] for item in [*papers, *signals] if item.published_at[:10]]
+    return max(dates) if dates else ""
+
+
+def _normalize_arxiv_id(value: str) -> str:
+    token = value.strip().lower().removeprefix("arxiv:")
+    if "arxiv.org/" in token:
+        token = urlparse(token).path.rstrip("/").split("/")[-1]
+    token = token.removesuffix(".pdf")
+    return re.sub(r"v\d+$", "", token)
+
+
+def _normalize_dedupe(value: str) -> str:
+    return " ".join(value.lower().strip().split())
+
+
+def _paper_dedupe_key(paper: Paper) -> str:
+    arxiv_id = _normalize_arxiv_id(paper.arxiv_id)
+    return _normalize_dedupe(
+        "|".join(
+            [
+                paper.title,
+                arxiv_id,
+                f"https://arxiv.org/abs/{arxiv_id}",
+                f"https://arxiv.org/pdf/{arxiv_id}",
+            ]
+        )
+    )
+
+
+def _alias_matches(text: str, alias: str) -> bool:
+    return bool(alias and re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text))
 
 
 def _timestamp(value: str) -> float:

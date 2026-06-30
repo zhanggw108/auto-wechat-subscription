@@ -392,13 +392,13 @@ class DailyPipeline:
         self._validate_topic_pack(pack)
         if previous and validate_changed:
             self._validate_refreshed_module_changed(previous, pack, module)
+        self.store.add_topic_pack_version(pack)
         if lock_long_articles:
             report_path = self.store.topic_pack_dir(run.date, next_version) / "long-article-scores.json"
             report_path.write_text(
                 json.dumps(build_score_report(pack.id, long_article_scores), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        self.store.add_topic_pack_version(pack)
         return pack
 
     def ensure_daily_run(self, date: str | None = None) -> DailyRun:

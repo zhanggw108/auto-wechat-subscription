@@ -503,8 +503,15 @@ def test_topic_pack_refresh_writes_long_article_score_report(tmp_path: Path):
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["topic_pack_id"] == pack.id
     assert len(payload["papers"]) >= 5
-    assert payload["papers"][0]["rank"] == 1
-    assert payload["papers"][0]["selected"] is True
+    first_paper = payload["papers"][0]
+    assert first_paper["rank"] == 1
+    assert first_paper["selected"] is True
+    assert first_paper["arxiv_id"]
+    assert first_paper["score_detail"]
+    assert first_paper["selection_reasons"]
+    assert isinstance(first_paper["total_score"], (int, float))
+    if len(payload["papers"]) == 5:
+        assert payload["papers"][4]["selected"] is True
 
 
 def test_initial_ai_hotspots_refresh_does_not_require_scoreable_long_articles(tmp_path: Path, monkeypatch):
@@ -519,6 +526,7 @@ def test_initial_ai_hotspots_refresh_does_not_require_scoreable_long_articles(tm
     assert len(pack.ai_hotspots) == 5
     assert len(pack.arxiv_papers) == 5
     assert any(item.title == "Agent eval 开始强调轨迹而不是单轮答案" for item in pack.ai_hotspots)
+    assert not (tmp_path / "topic-packs" / "2026-06-20" / "v01" / "long-article-scores.json").exists()
 
 
 def test_topic_pack_generation_sends_compact_real_source_context_to_llm(tmp_path: Path):

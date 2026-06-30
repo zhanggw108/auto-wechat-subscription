@@ -300,8 +300,11 @@ class DailyPipeline:
         for index, score in enumerate(scores[:5], start=1):
             paper = score.paper
             text_item = text_by_arxiv_id.get(normalize_arxiv_version(paper.arxiv_id))
-            if not text_item or not all(is_publishable_chinese_text(value) for value in (text_item.title, text_item.summary, text_item.angle)):
-                raise RuntimeError("LLM response missing usable long_articles copy")
+            if not text_item:
+                raise RuntimeError(f"LLM long_articles invalid: {paper.arxiv_id} missing")
+            invalid_fields = invalid_publishable_fields(text_item)
+            if invalid_fields:
+                raise RuntimeError(f"LLM long_articles invalid: {paper.arxiv_id} {', '.join(invalid_fields)} not publishable Chinese")
             locked.append(
                 self._make_topic_pack_item(
                     run_date=run_date,
@@ -696,7 +699,8 @@ class DailyPipeline:
             "不局限 Agent/RAG，覆盖 LLM、多模态、生成模型、AI safety、推理效率、训练方法、评测、AI coding、AI4Science、机器人等方向。"
             "long_articles 必须是近期重要 AI 论文深度解读候选，每条必须包含 arxiv_id 或 arXiv/PDF 论文 URL；"
             "如果输入包含 locked_long_articles，long_articles 必须逐条覆盖其中所有 arxiv_id，"
-            "只为这些论文生成可直接发布的中文 title、summary、angle，不得替换论文。"
+            "必须且只能为这些论文生成可直接发布的中文 title、summary、angle，顺序一致，不得新增、删除、替换论文。"
+            "long_articles 的 title、summary、angle 必须以中文为主，不得直接照抄英文论文标题；英文论文名只能作为补充信息。"
             "不得把 GitHub 项目、产品新闻、公司动态或泛话题单独放进 long_articles。"
             "ai_hotspots 承接 AI 热点、官方博客、产品动态、GitHub 开源项目和社区讨论；GitHub 主要进入 ai_hotspots。"
             "arxiv_papers 是 5-10 篇值得关注的论文速报，按学术价值排序，不按传播热度单独决定。"
@@ -2449,6 +2453,14 @@ def _score_detail_for_topic_pack(score: PaperScore) -> Dict[str, object]:
         "matched_source_domains": score.matched_source_domains,
         "matched_signals": score.matched_signals,
     }
+
+
+def invalid_publishable_fields(item: TopicPackItem) -> List[str]:
+    return [
+        field
+        for field, value in (("title", item.title), ("summary", item.summary), ("angle", item.angle))
+        if not is_publishable_chinese_text(value)
+    ]
 
 
 def normalize_arxiv_version(value: str) -> str:

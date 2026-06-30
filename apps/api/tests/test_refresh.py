@@ -288,6 +288,13 @@ class WrongArxivLongArticleLLM:
         return type("Result", (), {"response_id": "wrong-arxiv-test", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
+class EnglishTitleLongArticleLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload["long_articles"][0]["title"] = "LeVo 2: Stable and Melodious Song Generation via Hierarchical Representation"
+        return type("Result", (), {"response_id": "english-title-test", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
 class MissingLongArticlesLLM:
     def complete(self, instructions: str, input_text: str):
         payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
@@ -461,7 +468,7 @@ def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path)
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=ReplacingLongArticleLLM())
 
-    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+    with pytest.raises(RuntimeError, match="LLM long_articles invalid: 2501.04227 missing"):
         pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score locked")
 
 
@@ -469,15 +476,23 @@ def test_topic_pack_rejects_missing_llm_copy_for_locked_paper(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=WrongArxivLongArticleLLM())
 
-    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+    with pytest.raises(RuntimeError, match="LLM long_articles invalid: 2501.04227 missing"):
         pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject mismatched llm copy")
+
+
+def test_topic_pack_rejects_english_llm_title_for_locked_paper(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=EnglishTitleLongArticleLLM())
+
+    with pytest.raises(RuntimeError, match="LLM long_articles invalid: 2501.04227 title not publishable Chinese"):
+        pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject english title")
 
 
 def test_topic_pack_all_refresh_fails_when_long_articles_missing(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=MissingLongArticlesLLM())
 
-    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+    with pytest.raises(RuntimeError, match="LLM long_articles invalid: 2501.04227 missing"):
         pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial schema")
 
 

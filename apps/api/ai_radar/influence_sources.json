@@ -1,0 +1,46 @@
+{
+  "institutions": [
+    {"name": "OpenAI", "aliases": ["openai"], "weight": 25},
+    {"name": "Anthropic", "aliases": ["anthropic"], "weight": 24},
+    {"name": "Google DeepMind", "aliases": ["google deepmind", "deepmind"], "weight": 25},
+    {"name": "Google Research", "aliases": ["google research"], "weight": 22},
+    {"name": "Meta AI", "aliases": ["meta ai", "facebook ai"], "weight": 22},
+    {"name": "Microsoft Research", "aliases": ["microsoft research", "msr"], "weight": 22},
+    {"name": "NVIDIA", "aliases": ["nvidia"], "weight": 21},
+    {"name": "Apple", "aliases": ["apple machine learning", "apple"], "weight": 20},
+    {"name": "xAI", "aliases": ["xai"], "weight": 20},
+    {"name": "DeepSeek", "aliases": ["deepseek"], "weight": 22},
+    {"name": "Qwen", "aliases": ["qwen", "alibaba qwen"], "weight": 20},
+    {"name": "Alibaba", "aliases": ["alibaba", "alibaba damo"], "weight": 20},
+    {"name": "ByteDance", "aliases": ["bytedance", "byte dance"], "weight": 20},
+    {"name": "Tencent AI Lab", "aliases": ["tencent ai lab", "tencent"], "weight": 18},
+    {"name": "Tsinghua University", "aliases": ["tsinghua university", "tsinghua"], "weight": 18},
+    {"name": "Stanford", "aliases": ["stanford university", "stanford"], "weight": 18},
+    {"name": "MIT", "aliases": ["mit", "massachusetts institute of technology"], "weight": 18},
+    {"name": "UC Berkeley", "aliases": ["uc berkeley", "berkeley"], "weight": 18},
+    {"name": "CMU", "aliases": ["carnegie mellon", "cmu"], "weight": 18}
+  ],
+  "people": [
+    {"name": "Yann LeCun", "aliases": ["yann lecun", "lecun"], "weight": 20},
+    {"name": "Geoffrey Hinton", "aliases": ["geoffrey hinton", "hinton"], "weight": 20},
+    {"name": "Yoshua Bengio", "aliases": ["yoshua bengio", "bengio"], "weight": 20},
+    {"name": "Ilya Sutskever", "aliases": ["ilya sutskever"], "weight": 20},
+    {"name": "Andrej Karpathy", "aliases": ["andrej karpathy", "karpathy"], "weight": 18},
+    {"name": "François Chollet", "aliases": ["françois chollet", "francois chollet", "chollet"], "weight": 18},
+    {"name": "Demis Hassabis", "aliases": ["demis hassabis", "hassabis"], "weight": 18},
+    {"name": "Fei-Fei Li", "aliases": ["fei-fei li", "feifei li"], "weight": 18},
+    {"name": "Pieter Abbeel", "aliases": ["pieter abbeel", "abbeel"], "weight": 18},
+    {"name": "Andrew Ng", "aliases": ["andrew ng"], "weight": 18}
+  ],
+  "source_domains": [
+    {"domain": "openai.com", "weight": 18},
+    {"domain": "anthropic.com", "weight": 18},
+    {"domain": "deepmind.google", "weight": 18},
+    {"domain": "ai.meta.com", "weight": 16},
+    {"domain": "blogs.nvidia.com", "weight": 16},
+    {"domain": "microsoft.com", "weight": 14},
+    {"domain": "apple.com", "weight": 14},
+    {"domain": "deepseek.com", "weight": 16},
+    {"domain": "qwenlm.github.io", "weight": 14}
+  ]
+}

@@ -14,6 +14,7 @@ TopicStatus = Literal["candidate", "selected", "drafted", "published", "rejected
 DraftStatus = Literal["generating", "review", "ready", "published", "rejected"]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "canceled"]
 RefreshModule = Literal["main", "hotspots", "arxiv"]
+TopicPackModule = Literal["long_articles", "ai_hotspots", "arxiv_papers", "all"]
 
 
 class ScoreItem(BaseModel):
@@ -83,6 +84,39 @@ class Topic(BaseModel):
     created_at: str
 
 
+class TopicPackItem(BaseModel):
+    id: str
+    module: Literal["long_articles", "ai_hotspots", "arxiv_papers"]
+    title: str
+    summary: str
+    angle: str
+    source_urls: List[str] = Field(default_factory=list)
+    arxiv_id: Optional[str] = None
+    topic_id: Optional[str] = None
+    rank: int = Field(ge=1)
+    status: TopicStatus = "candidate"
+    llm_response_id: str = ""
+    dedupe_key: str
+    angle_hash: str
+    score_detail: Dict[str, object] = Field(default_factory=dict)
+
+
+class TopicPackVersion(BaseModel):
+    id: str
+    date: str
+    version: int = Field(ge=1)
+    trigger: Literal["scheduled", "manual"]
+    refreshed_module: TopicPackModule
+    status: Literal["generating", "ready", "failed"] = "ready"
+    long_articles: List[TopicPackItem]
+    ai_hotspots: List[TopicPackItem]
+    arxiv_papers: List[TopicPackItem]
+    llm_prompt_summary: str = ""
+    llm_response_id: str = ""
+    previous_version_id: Optional[str] = None
+    created_at: str
+
+
 class EvidenceItem(BaseModel):
     id: str
     topic_id: str
@@ -104,7 +138,7 @@ class DraftAsset(BaseModel):
     path: str
     width: int = 1536
     height: int = 1024
-    provider: str = "image2-placeholder"
+    provider: str = "image2"
     provider_request_id: Optional[str] = None
     created_at: str
 
@@ -124,6 +158,7 @@ class Draft(BaseModel):
     version: int
     assets: List[DraftAsset] = Field(default_factory=list)
     last_rerun_stage: str = ""
+    generation_error: str = ""
     created_at: str
     updated_at: str
 
@@ -180,6 +215,12 @@ class RegenerateRequest(BaseModel):
 
 class RefreshModuleRequest(BaseModel):
     module: RefreshModule
+    reason: str = "manual refresh"
+
+
+class TopicPackRefreshRequest(BaseModel):
+    date: Optional[str] = None
+    module: TopicPackModule
     reason: str = "manual refresh"
 
 

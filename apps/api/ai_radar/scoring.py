@@ -188,7 +188,7 @@ def score_papers(
         if paper.pdf_url or paper.arxiv_id
     ]
     return sorted(
-        scores,
+        [score for score in scores if score.total_score > 0],
         key=lambda item: (
             -item.total_score,
             -int(item.score_detail["influence_score"]["value"]),

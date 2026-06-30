@@ -267,7 +267,7 @@ class DailyPipeline:
     def _previous_topic_pack_items(self, run_date: str) -> List[Dict[str, object]]:
         return [
             item.model_dump(mode="json")
-            for pack in self.store.list_topic_pack_versions(run_date)
+            for pack in self.store.list_topic_pack_versions()
             for item in [*pack.long_articles, *pack.ai_hotspots, *pack.arxiv_papers]
         ]
 
@@ -300,6 +300,8 @@ class DailyPipeline:
         for index, score in enumerate(scores[:5], start=1):
             paper = score.paper
             text_item = text_by_arxiv_id.get(normalize_arxiv_version(paper.arxiv_id))
+            if text_item and not _llm_item_matches_paper(text_item, paper):
+                text_item = None
             title = text_item.title if text_item else paper.title
             summary = text_item.summary if text_item else paper.abstract[:280]
             angle = text_item.angle if text_item else "从问题、方法、实验和局限四个角度展开论文解读。"
@@ -2367,6 +2369,32 @@ def _score_detail_for_topic_pack(score: PaperScore) -> Dict[str, object]:
         "matched_source_domains": score.matched_source_domains,
         "matched_signals": score.matched_signals,
     }
+
+
+def _llm_item_matches_paper(item: TopicPackItem, paper: Paper) -> bool:
+    paper_arxiv_id = normalize_arxiv_version(paper.arxiv_id)
+    item_arxiv_ids = {
+        normalize_arxiv_version(arxiv_id)
+        for arxiv_id in [item.arxiv_id, *(extract_arxiv_id(url) for url in item.source_urls)]
+        if arxiv_id
+    }
+    if paper_arxiv_id not in item_arxiv_ids:
+        return False
+    return _title_matches_paper(item.title, paper.title)
+
+
+def _title_matches_paper(llm_title: str, paper_title: str) -> bool:
+    llm_normalized = normalize_dedupe(llm_title)
+    paper_normalized = normalize_dedupe(paper_title)
+    if not llm_normalized or not paper_normalized:
+        return False
+    if llm_normalized in paper_normalized or paper_normalized in llm_normalized:
+        return True
+    llm_tokens = set(re.findall(r"[a-z0-9]{3,}", llm_normalized))
+    paper_tokens = set(re.findall(r"[a-z0-9]{3,}", paper_normalized))
+    if llm_tokens.intersection(paper_tokens):
+        return True
+    return SequenceMatcher(None, llm_normalized, paper_normalized).ratio() >= 0.35
 
 
 def normalize_arxiv_version(value: str) -> str:

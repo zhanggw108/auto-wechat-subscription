@@ -20,19 +20,19 @@ def _scoreable_test_papers(run_date: str) -> list[Paper]:
             update={
                 "id": f"paper-score-lock-{index}",
                 "arxiv_id": f"2606.9100{index}",
-                "title": f"Supplemental Archive Note {index}",
+                "title": f"Supplemental Agent Note {index}",
                 "authors": [f"Supplemental Author {index}"],
-                "abstract": "A short archival note about tables, records, and editorial bookkeeping.",
+                "abstract": "A short agent note.",
                 "pdf_url": f"https://arxiv.org/pdf/2606.9100{index}",
-                "categories": ["stat.ME"],
-                "method_summary": "Bookkeeping note.",
-                "experiment_summary": "No experiment.",
+                "categories": ["cs.AI"],
+                "method_summary": "Agent note.",
+                "experiment_summary": "Short note.",
                 "limitations": "Supplemental fixture only.",
                 "replication_value": 1,
                 "extension_topics": [],
             }
         )
-        for index in range(1, 6 - len(papers))
+        for index in range(1, 9)
     ]
 
 
@@ -323,6 +323,13 @@ class ReplacingLongArticleLLM:
         return type("Result", (), {"response_id": "replace-test", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
+class WrongTitleLongArticleLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload["long_articles"][0]["title"] = "完全错误的行业新闻标题"
+        return type("Result", (), {"response_id": "wrong-title-test", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
 def test_refresh_status_counts_down_to_11_before_daily_refresh(tmp_path: Path):
     pipeline = DailyPipeline(JsonStore(tmp_path))
 
@@ -491,6 +498,51 @@ def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path)
     assert all(item.score_detail for item in pack.long_articles)
     totals = [item.score_detail["total_score"]["value"] for item in pack.long_articles]
     assert totals == sorted(totals, reverse=True)
+
+
+def test_topic_pack_rejects_mismatched_llm_title_for_locked_paper(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=WrongTitleLongArticleLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject mismatched llm copy")
+
+    item = next(item for item in pack.long_articles if item.arxiv_id == "2501.04227")
+    paper = next(paper for paper in store.list_papers() if paper.arxiv_id == "2501.04227")
+    assert item.title == paper.title
+    assert item.title != "完全错误的行业新闻标题"
+
+
+def test_topic_pack_scores_penalize_cross_day_history(tmp_path: Path, monkeypatch):
+    def high_score_seed(run_date: str) -> list[Paper]:
+        papers = _scoreable_test_papers(run_date)
+        return [
+            *papers,
+            papers[0].model_copy(
+                update={
+                    "id": "paper-cross-day-history",
+                    "arxiv_id": "2606.99999",
+                    "title": "OpenAI Agent Benchmark with Large-Scale Ablation",
+                    "authors": ["OpenAI Research"],
+                    "abstract": "OpenAI introduces a framework and benchmark for agent evaluation with ablation and large-scale comparison.",
+                    "pdf_url": "https://arxiv.org/pdf/2606.99999",
+                    "categories": ["cs.AI"],
+                    "method_summary": "Agent evaluation framework.",
+                    "experiment_summary": "Benchmark comparison and ablation experiments.",
+                }
+            ),
+        ]
+
+    monkeypatch.setattr("ai_radar.pipeline.seed_papers", high_score_seed)
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=TopicPackLLM())
+    pipeline.refresh_topic_pack("2026-06-29", module="all", reason="day one")
+
+    pack = pipeline.refresh_topic_pack("2026-06-30", module="all", reason="day two")
+
+    report_path = tmp_path / "topic-packs" / "2026-06-30" / "v01" / "long-article-scores.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    item = next(item for item in report["papers"] if item["arxiv_id"] == "2606.99999")
+    assert item["score_detail"]["penalties"]["value"] >= 20
 
 
 def test_topic_pack_refresh_writes_long_article_score_report(tmp_path: Path):

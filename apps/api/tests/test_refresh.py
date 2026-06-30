@@ -521,8 +521,7 @@ def test_topic_pack_rejects_mismatched_llm_title_for_locked_paper(tmp_path: Path
     pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject mismatched llm copy")
 
     item = next(item for item in pack.long_articles if item.arxiv_id == "2501.04227")
-    paper = next(paper for paper in store.list_papers() if paper.arxiv_id == "2501.04227")
-    assert item.title == paper.title
+    assert item.title.startswith("为什么值得读：")
     assert item.title != "完全错误的行业新闻标题"
 
 
@@ -540,6 +539,19 @@ def test_topic_pack_all_refresh_keeps_successful_modules_when_long_articles_miss
     assert len(pack.arxiv_papers) == 5
     assert all(item.score_detail for item in pack.long_articles)
     assert pack.llm_response_id == "missing-long-articles"
+
+
+def test_locked_long_article_fallback_copy_is_chinese_and_specific(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=MissingLongArticlesLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="fallback copy")
+
+    for item in pack.long_articles:
+        assert item.title.startswith("为什么值得读：")
+        assert "从问题、方法、实验和局限四个角度展开论文解读。" not in item.angle
+        assert "这篇论文适合先按" in item.angle
+        assert "这篇论文入选长文候选" in item.summary
 
 
 def test_topic_pack_all_refresh_returns_partial_pack_when_secondary_module_missing(tmp_path: Path):

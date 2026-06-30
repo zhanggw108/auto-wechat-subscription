@@ -302,9 +302,9 @@ class DailyPipeline:
             text_item = text_by_arxiv_id.get(normalize_arxiv_version(paper.arxiv_id))
             if text_item and not _llm_item_matches_paper(text_item, paper):
                 text_item = None
-            title = text_item.title if text_item else paper.title
-            summary = text_item.summary if text_item else paper.abstract[:280]
-            angle = text_item.angle if text_item else "从问题、方法、实验和局限四个角度展开论文解读。"
+            title = text_item.title if text_item else fallback_topic_pack_title(paper)
+            summary = text_item.summary if text_item else fallback_topic_pack_summary(paper, score)
+            angle = text_item.angle if text_item else fallback_topic_pack_angle(paper)
             locked.append(
                 self._make_topic_pack_item(
                     run_date=run_date,
@@ -1547,6 +1547,16 @@ def zh_paper_focus(paper: Paper) -> str:
 
 def zh_focus_from_material(material: str) -> str:
     lower = material.lower()
+    if any(keyword in lower for keyword in ("sparse autoencoder", "sparse autoencoders", "feature splitting", "feature absorption")):
+        return "可解释性、稀疏自编码器和特征表示可靠性"
+    if any(keyword in lower for keyword in ("asynchronous pipeline", "pipeline parallel", "gradient delay", "pretraining")):
+        return "大模型训练效率、异步流水线并行和优化稳定性"
+    if any(keyword in lower for keyword in ("song generation", "music", "melodious", "vocal", "accompaniment")):
+        return "音乐生成、层次化表示建模和后训练对齐"
+    if any(keyword in lower for keyword in ("multi-agent", "multi agent", "communication channel", "vulnerable communication")):
+        return "多智能体安全、通信通道风险和系统防护优先级"
+    if any(keyword in lower for keyword in ("contrastive", "embedding norm", "embeddings", "concept specificity")):
+        return "表征学习、嵌入范数和语义特异性"
     if any(keyword in lower for keyword in ("on-device", "low-latency", "small-batch", "serving", "kv cache", "checkpoint")):
         return "端侧低延迟模型服务、执行状态复用和小 batch 推理"
     if any(keyword in lower for keyword in ("rag", "retrieval", "long-context", "long context")):
@@ -2413,6 +2423,20 @@ def _score_detail_for_topic_pack(score: PaperScore) -> Dict[str, object]:
         "matched_source_domains": score.matched_source_domains,
         "matched_signals": score.matched_signals,
     }
+
+
+def fallback_topic_pack_title(paper: Paper) -> str:
+    return f"为什么值得读：{zh_paper_focus(paper)}"
+
+
+def fallback_topic_pack_summary(paper: Paper, score: PaperScore) -> str:
+    reasons = "；".join(score.selection_reasons[:2]) if score.selection_reasons else "量化评分进入前五"
+    return f"这篇论文入选长文候选，核心看点是{zh_paper_focus(paper)}。入选依据：{reasons}。"
+
+
+def fallback_topic_pack_angle(paper: Paper) -> str:
+    focus = zh_paper_focus(paper)
+    return f"这篇论文适合先按“{focus}”来读：重点看它试图解决的研究矛盾、机制设计是否清楚，以及实验是否足以支撑结论。"
 
 
 def _llm_item_matches_paper(item: TopicPackItem, paper: Paper) -> bool:

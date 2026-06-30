@@ -26,14 +26,20 @@ import {
   RefreshModule,
   RefreshStatus,
   Topic,
+  TopicPackItem,
+  TopicPackModule,
+  TopicPackVersion,
+  fetchCurrentTopicPack,
   fetchDraftDetail,
   fetchProviderSettings,
   fetchRadar,
   fetchRefreshStatus,
+  fetchSources,
   fetchTopics,
   generateTopicDraft,
   refreshDraftModule,
   refreshIfDue,
+  refreshTopicPackModule,
   rerunDraft,
   saveDraftContent,
   saveProviderSettings
@@ -46,10 +52,12 @@ type AppProps = {
   initialDraftDetail?: DraftDetail;
   initialProviderSettings?: ProvidersSettings;
   initialRefreshStatus?: RefreshStatus;
+  initialTopicPack?: TopicPackVersion;
 };
 
 type SettingsForm = {
   llm: {
+    provider: string;
     base_url: string;
     api_key: string;
     model: string;
@@ -64,11 +72,10 @@ type SettingsForm = {
   };
 };
 
-const scoreLabels: Record<string, string> = {
-  heat: "Heat",
-  relevance: "Relevance",
-  writeability: "Writeability",
-  conversion: "Conversion"
+const llmProviderDefaults: Record<string, string> = {
+  relay: "",
+  deepseek: "https://api.deepseek.com",
+  doubao: "https://ark.cn-beijing.volces.com/api/v3"
 };
 
 const rerunActions = [
@@ -76,9 +83,9 @@ const rerunActions = [
   { label: "重跑导语", stage: "outline", icon: Repeat },
   { label: "重跑整篇", stage: "article", icon: Article },
   { label: "重跑风格", stage: "style", icon: Repeat },
-  { label: "重跑封面", stage: "cover", icon: Image },
-  { label: "重跑机制图", stage: "mechanism", icon: Image },
-  { label: "生成 HTML", stage: "wechat", icon: FileHtml }
+  { label: "重跑封面素材", stage: "cover", icon: Image },
+  { label: "重跑机制图素材", stage: "mechanism", icon: Image },
+  { label: "刷新 HTML", stage: "wechat", icon: FileHtml }
 ];
 
 const moduleRefreshActions: Array<{ label: string; module: RefreshModule; title: string }> = [
@@ -93,6 +100,13 @@ const moduleFeedbackLabels: Record<RefreshModule, string> = {
   arxiv: "arXiv 速报"
 };
 
+const topicPackModuleLabels: Record<TopicPackModule, string> = {
+  long_articles: "论文解读候选",
+  ai_hotspots: "AI 热点话题",
+  arxiv_papers: "高热 arXiv 论文",
+  all: "全部选题"
+};
+
 const rerunFeedbackLabels: Record<string, string> = {
   title: "标题",
   outline: "导语",
@@ -105,6 +119,7 @@ const rerunFeedbackLabels: Record<string, string> = {
 
 const emptyProviderSettings: ProvidersSettings = {
   llm: {
+    provider: "relay",
     base_url: "",
     model: "",
     configured: false,
@@ -114,6 +129,7 @@ const emptyProviderSettings: ProvidersSettings = {
     output_format: "png"
   },
   image2: {
+    provider: "relay",
     base_url: "",
     model: "",
     configured: false,
@@ -127,6 +143,7 @@ const emptyProviderSettings: ProvidersSettings = {
 function settingsToForm(settings: ProvidersSettings): SettingsForm {
   return {
     llm: {
+      provider: settings.llm.provider || "relay",
       base_url: settings.llm.base_url,
       api_key: "",
       model: settings.llm.model
@@ -142,17 +159,18 @@ function settingsToForm(settings: ProvidersSettings): SettingsForm {
   };
 }
 
-function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderSettings, initialRefreshStatus }: AppProps) {
+function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderSettings, initialRefreshStatus, initialTopicPack }: AppProps) {
   const [radar, setRadar] = useState<RadarToday | null>(initialRadar ?? null);
   const [topics, setTopics] = useState<Topic[]>(initialTopics ?? []);
+  const [topicPack, setTopicPack] = useState<TopicPackVersion | null>(initialTopicPack ?? null);
   const [draftDetail, setDraftDetail] = useState<DraftDetail | null>(initialDraftDetail ?? null);
   const [providerSettings, setProviderSettings] = useState<ProvidersSettings>(initialProviderSettings ?? emptyProviderSettings);
   const [refreshStatus, setRefreshStatus] = useState<RefreshStatus | null>(initialRefreshStatus ?? null);
+  const [sourceDiagnostics, setSourceDiagnostics] = useState<RadarToday["source_health"]>(initialRadar?.source_health ?? []);
   const [countdownSeconds, setCountdownSeconds] = useState(initialRefreshStatus?.seconds_until_next_refresh ?? 0);
   const [settingsForm, setSettingsForm] = useState<SettingsForm>(() =>
     settingsToForm(initialProviderSettings ?? emptyProviderSettings)
   );
-  const [activeTopicId, setActiveTopicId] = useState(initialRadar?.recommended_topic.id ?? initialTopics?.[0]?.id ?? "");
   const [status, setStatus] = useState(initialRadar ? "ready" : "loading");
   const [settingsStatus, setSettingsStatus] = useState(initialProviderSettings ? "ready" : "loading");
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -160,6 +178,9 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
   const [rerunningStage, setRerunningStage] = useState("");
   const [generatingTopicId, setGeneratingTopicId] = useState("");
   const [dueRefreshing, setDueRefreshing] = useState(false);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [refreshingTopicModule, setRefreshingTopicModule] = useState<TopicPackModule | "">("");
+  const [refreshMessage, setRefreshMessage] = useState("");
   const [editorMode, setEditorMode] = useState<"review" | "edit">("review");
   const [editorMarkdown, setEditorMarkdown] = useState(initialDraftDetail?.markdown ?? "");
   const [editorStatus, setEditorStatus] = useState("");
@@ -182,17 +203,29 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
         }
         const nextRadar = await fetchRadar();
         const nextTopics = await fetchTopics();
+        const nextTopicPack = await fetchCurrentTopicPack(nextRadar.date);
         const nextDetail = await fetchDraftDetail(nextRadar.draft.id);
         if (!cancelled) {
           setRadar(nextRadar);
           setTopics(nextTopics);
+          setTopicPack(nextTopicPack);
           setDraftDetail(nextDetail);
-          setActiveTopicId(nextRadar.recommended_topic.id);
           setStatus("ready");
         }
       } catch (error) {
         if (!cancelled) {
-          setStatus(error instanceof Error ? error.message : "Load failed");
+          const message = error instanceof Error ? error.message : "Load failed";
+          setStatus(message);
+          try {
+            const sources = await fetchSources();
+            if (!cancelled) {
+              setSourceDiagnostics(sources);
+            }
+          } catch {
+            if (!cancelled) {
+              setSourceDiagnostics([]);
+            }
+          }
         }
       }
     }
@@ -279,10 +312,6 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     setEditorStatus("");
   }, [draftDetail?.draft.id]);
 
-  const activeTopic = useMemo(
-    () => topics.find((topic) => topic.id === activeTopicId) ?? radar?.recommended_topic ?? topics[0],
-    [activeTopicId, radar, topics]
-  );
   const editorDirty = Boolean(draftDetail && editorMarkdown !== draftDetail.markdown);
   const articleModules = useMemo(() => parseArticleModules(editorMarkdown), [editorMarkdown]);
   const activeArticleModule = articleModules.find((item) => item.id === activeModuleId) ?? articleModules[0];
@@ -298,6 +327,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       const nextDraft = await rerunDraft(draftDetail.draft.id, stage);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      setEditorMarkdown(nextDetail.markdown);
       setEditorStatus(`已重跑${rerunFeedbackLabels[stage] ?? stage} v${nextDetail.draft.version}`);
     } catch (error) {
       setEditorStatus(error instanceof Error ? `重跑失败：${error.message}` : "重跑失败");
@@ -306,27 +336,27 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     }
   }
 
-  function handleTopicSelect(topicId: string) {
-    setActiveTopicId(topicId);
+  function scrollToWorkshop() {
     window.history.replaceState(null, "", "#workshop");
     document.getElementById("workshop")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function handleGenerateTopicDraft(topicId: string) {
+  async function handleSelectTopicDraft(topicId: string) {
     if (!radar) {
       return;
     }
-    handleTopicSelect(topicId);
+    scrollToWorkshop();
     setGeneratingTopicId(topicId);
-    setEditorStatus("正在选择并生成草稿...");
+    setEditorStatus("正在选择选题...");
     try {
       const nextDraft = await generateTopicDraft(topicId, radar.date);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      setEditorMarkdown(nextDetail.markdown);
       setActiveModuleId("article-module-main");
-      setEditorStatus(`已生成选题草稿 v${nextDetail.draft.version}`);
+      setEditorStatus(`已选择选题 v${nextDetail.draft.version}，点击“生成长文”继续`);
     } catch (error) {
-      setEditorStatus(error instanceof Error ? `生成草稿失败：${error.message}` : "生成草稿失败");
+      setEditorStatus(error instanceof Error ? `选择选题失败：${error.message}` : "选择选题失败");
     } finally {
       setGeneratingTopicId("");
     }
@@ -338,17 +368,76 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       const nextRefresh = await refreshIfDue();
       const nextRadar = await fetchRadar();
       const nextTopics = await fetchTopics();
+      const nextTopicPack = await fetchCurrentTopicPack(nextRadar.date);
+      const nextDetail = await fetchDraftDetail(nextRadar.draft.id);
+      setRefreshStatus(nextRefresh);
+      setCountdownSeconds(nextRefresh.seconds_until_next_refresh);
+      setRadar(nextRadar);
+      setSourceDiagnostics(nextRadar.source_health);
+      setTopics(nextTopics);
+      setTopicPack(nextTopicPack);
+      setDraftDetail(nextDetail);
+      setEditorMarkdown(nextDetail.markdown);
+      setRefreshMessage("已完成自动刷新");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Scheduled refresh failed";
+      setStatus(message);
+      try {
+        setSourceDiagnostics(await fetchSources());
+      } catch {
+        setSourceDiagnostics(radar?.source_health ?? []);
+      }
+    } finally {
+      setDueRefreshing(false);
+    }
+  }
+
+  async function handleManualRefreshToday() {
+    setManualRefreshing(true);
+    setRefreshMessage("正在刷新全部选题...");
+    try {
+      const nextTopicPack = await refreshTopicPackModule("all", radar?.date, "manual topic module refresh");
+      const nextRefresh = await fetchRefreshStatus();
+      const nextRadar = await fetchRadar();
+      const nextTopics = await fetchTopics();
       const nextDetail = await fetchDraftDetail(nextRadar.draft.id);
       setRefreshStatus(nextRefresh);
       setCountdownSeconds(nextRefresh.seconds_until_next_refresh);
       setRadar(nextRadar);
       setTopics(nextTopics);
+      setTopicPack(nextTopicPack);
       setDraftDetail(nextDetail);
-      setActiveTopicId(nextRadar.recommended_topic.id);
+      setEditorMarkdown(nextDetail.markdown);
+      setActiveModuleId("article-module-main");
+      setRefreshMessage(`已刷新全部选题 v${nextTopicPack.version}`);
+      setEditorStatus(`已载入新选题：${nextRadar.recommended_topic.title}`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Scheduled refresh failed");
+      setRefreshMessage(error instanceof Error ? `刷新失败：${error.message}` : "刷新失败");
     } finally {
-      setDueRefreshing(false);
+      setManualRefreshing(false);
+    }
+  }
+
+  async function handleRefreshTopicModule(module: TopicPackModule) {
+    if (!radar) {
+      return;
+    }
+    setRefreshingTopicModule(module);
+    setRefreshMessage(`正在刷新${topicPackModuleLabels[module]}...`);
+    try {
+      const nextPack = await refreshTopicPackModule(module, radar.date, "manual topic module refresh");
+      setTopicPack(nextPack);
+      try {
+        const nextTopics = await fetchTopics();
+        setTopics(nextTopics);
+      } catch {
+        // The versioned topic pack is the source of truth for module refreshes.
+      }
+      setRefreshMessage(`已刷新 ${topicPackModuleLabels[module]} v${nextPack.version}`);
+    } catch (error) {
+      setRefreshMessage(error instanceof Error ? `刷新失败：${error.message}` : "刷新失败");
+    } finally {
+      setRefreshingTopicModule("");
     }
   }
 
@@ -363,6 +452,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       const nextDraft = await refreshDraftModule(draftDetail.draft.id, module);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      setEditorMarkdown(nextDetail.markdown);
       setEditorStatus(`已生成${moduleFeedbackLabels[module]} v${nextDetail.draft.version}`);
     } catch (error) {
       setEditorStatus(error instanceof Error ? `生成失败：${error.message}` : "生成失败");
@@ -405,7 +495,8 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       ...current,
       [provider]: {
         ...current[provider],
-        [field]: value
+        [field]: value,
+        ...(provider === "llm" && field === "provider" && value !== "relay" ? { base_url: llmProviderDefaults[value] } : {})
       }
     }));
   }
@@ -429,13 +520,33 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     }
   }
 
-  if (!radar || !activeTopic || !draftDetail) {
+  if (!radar || !draftDetail) {
+    const failedSources = sourceDiagnostics.filter((source) => source.status === "failed" || source.status === "degraded");
+    const diagnosticSources = [...sourceDiagnostics].sort((left, right) => {
+      const weight = { failed: 0, degraded: 1, healthy: 2 } as const;
+      return weight[left.status] - weight[right.status];
+    });
+    const isSourceFailure = status !== "loading" && (status.includes("Live source refresh failed") || failedSources.length > 0);
     return (
       <main className="app-shell app-shell--loading">
-        <section className="loading-panel">
+        <section className={`loading-panel ${isSourceFailure ? "loading-panel--error" : ""}`}>
           <Pulse size={30} weight="duotone" />
-          <h1>AI 内容雷达启动中</h1>
-          <p>{status === "loading" ? "正在生成今日雷达、选题池和稿件包。" : status}</p>
+          <h1>{isSourceFailure ? "实时信源刷新失败" : "AI 内容雷达启动中"}</h1>
+            <p>{status === "loading" ? "正在生成今日 AI 论文雷达、热点和稿件包。" : status}</p>
+          {isSourceFailure ? (
+            <div className="source-diagnostics">
+              <p>上一轮成功数据没有被覆盖。请先修复失败信源，再重新刷新今日雷达。</p>
+              <div className="source-diagnostics__list">
+                {diagnosticSources.map((source) => (
+                  <a className="source-diagnostic-row" href={source.url} key={source.id}>
+                    <span className={`health-dot health-dot--${source.status}`} />
+                    <strong>{source.name}</strong>
+                    <small>{source.last_error || source.status}</small>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
     );
@@ -474,6 +585,10 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
           </div>
           <span>{refreshStatus?.today_refreshed ? "今日已刷新" : "今日待刷新"}</span>
           <p>还有 {formatDuration(countdownSeconds)}</p>
+          <button disabled={manualRefreshing || dueRefreshing} onClick={handleManualRefreshToday} type="button">
+            <Repeat size={16} /> {manualRefreshing ? "刷新中" : "刷新全部选题"}
+          </button>
+          {refreshMessage ? <small aria-live="polite">{refreshMessage}</small> : null}
         </section>
 
         <section className="source-strip">
@@ -493,7 +608,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
             <p className="section-kicker">Daily signal sweep</p>
             <h1>今日雷达</h1>
             <p className="section-copy">
-              系统已把过去 24 小时的论文、新闻、项目和产品发布压缩成一组可写选题。优先看评分高、证据风险低、能自然转成论文方向的内容。
+              系统已把近期 AI 论文、行业新闻、开源项目和产品发布压缩成三组内容：论文深度解读、AI 热点和高热 arXiv 论文。优先看学术价值高、证据风险低、能讲清楚研究问题的内容。
             </p>
           </div>
 
@@ -533,21 +648,52 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
               <p className="section-kicker">Topic scoring</p>
               <h2>选题池</h2>
             </div>
-            <span className="quiet-badge">5-10 candidates</span>
+            <span className="quiet-badge">
+              {topicPack ? `topic pack v${topicPack.version}` : "5-10 candidates"}
+            </span>
           </div>
 
-          <div className="topic-grid">
-            {topics.map((topic) => (
-              <TopicCard
-                key={topic.id}
-                topic={topic}
-                active={topic.id === activeTopic.id}
-                onSelect={() => handleTopicSelect(topic.id)}
-                onGenerate={() => handleGenerateTopicDraft(topic.id)}
-                generating={generatingTopicId === topic.id}
+          {topicPack ? (
+            <div className="topic-pack-grid" aria-label="今日选题包">
+              <TopicPackModulePanel
+                title="论文深度解读"
+                description="5 篇近期重要 AI 论文，标明来源后作为长文章主线"
+                items={topicPack.long_articles}
+                refreshing={refreshingTopicModule === "long_articles"}
+                onRefresh={() => handleRefreshTopicModule("long_articles")}
+                refreshLabel="刷新论文解读候选"
+                onGenerate={(item) => {
+                  if (item.topic_id) {
+                    void handleSelectTopicDraft(item.topic_id);
+                  }
+                }}
+                generatingTopicId={generatingTopicId}
               />
-            ))}
-          </div>
+              <TopicPackModulePanel
+                title="AI 热点话题"
+                description="5-10 个当天 AI 圈热点，保持简要概述"
+                items={topicPack.ai_hotspots}
+                refreshing={refreshingTopicModule === "ai_hotspots"}
+                onRefresh={() => handleRefreshTopicModule("ai_hotspots")}
+                refreshLabel="刷新 AI 热点话题"
+              />
+              <TopicPackModulePanel
+                title="高热 arXiv 论文"
+                description="5-10 篇高热论文速报，可标记后续展开"
+                items={topicPack.arxiv_papers}
+                refreshing={refreshingTopicModule === "arxiv_papers"}
+                onRefresh={() => handleRefreshTopicModule("arxiv_papers")}
+                refreshLabel="刷新 arXiv 论文"
+              />
+            </div>
+          ) : null}
+
+          {!topicPack ? (
+            <section className="topic-pack-empty">
+              <h3>今日选题还没有由 LLM 生成</h3>
+              <p>点击刷新后会调用你配置的 LLM 生成论文深度解读、AI 热点和 arXiv 三个模块。未生成前不再展示内置默认选题。</p>
+            </section>
+          ) : null}
         </section>
 
         <section className="workshop-section" id="workshop">
@@ -717,12 +863,23 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
               configured={providerSettings.llm.configured}
               maskedKey={providerSettings.llm.api_key_masked}
             >
+              <Field label="LLM 服务商">
+                <select
+                  aria-label="LLM 服务商"
+                  value={settingsForm.llm.provider}
+                  onChange={(event) => updateSettingsForm("llm", "provider", event.target.value)}
+                >
+                  <option value="relay">第三方中转</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="doubao">Doubao</option>
+                </select>
+              </Field>
               <Field label="LLM Base URL">
                 <input
                   aria-label="LLM Base URL"
                   value={settingsForm.llm.base_url}
                   onChange={(event) => updateSettingsForm("llm", "base_url", event.target.value)}
-                  placeholder="https://relay.example.com/v1"
+                  placeholder={llmProviderDefaults[settingsForm.llm.provider] || "https://relay.example.com/v1"}
                 />
               </Field>
               <Field label="LLM API Key">
@@ -747,7 +904,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
 
             <ProviderPanel
               title="Image Responses"
-              description="用于封面和机制图重跑。未配置时会继续生成本地占位 PNG。"
+              description="用于封面和机制图重跑。未配置或调用失败时会直接提示失败。"
               configured={providerSettings.image2.configured}
               maskedKey={providerSettings.image2.api_key_masked}
             >
@@ -832,55 +989,91 @@ function Metric({ label, value, icon }: { label: string; value: string; icon: Re
   );
 }
 
-function TopicCard({
-  topic,
-  active,
-  onSelect,
+function topicPackScoreSummary(item: TopicPackItem): { line: string; reasons: string } | null {
+  const score = item.score_detail;
+  if (!score?.total_score || typeof score.total_score.value !== "number") return null;
+  const influence = typeof score.influence_score?.value === "number" ? score.influence_score.value : 0;
+  const method = typeof score.method_substance?.value === "number" ? score.method_substance.value : 0;
+  const experiment = typeof score.experiment_strength?.value === "number" ? score.experiment_strength.value : 0;
+  const reasons = Array.isArray(score.selection_reasons) ? score.selection_reasons.join("；") : "";
+  return {
+    line: `总分 ${score.total_score.value} | 影响力 ${influence} | 方法 ${method} | 实验 ${experiment}`,
+    reasons: reasons ? `入选原因：${reasons}` : ""
+  };
+}
+
+function TopicPackModulePanel({
+  title,
+  description,
+  items,
+  refreshing,
+  onRefresh,
+  refreshLabel,
   onGenerate,
-  generating
+  generatingTopicId = ""
 }: {
-  topic: Topic;
-  active: boolean;
-  onSelect: () => void;
-  onGenerate: () => void;
-  generating: boolean;
+  title: string;
+  description: string;
+  items: TopicPackItem[];
+  refreshing: boolean;
+  onRefresh: () => void;
+  refreshLabel: string;
+  onGenerate?: (item: TopicPackItem) => void;
+  generatingTopicId?: string;
 }) {
   return (
-    <article
-      className={`topic-card ${active ? "topic-card--active" : ""}`}
-      data-testid={`topic-${topic.id}`}
-      onClick={onSelect}
-      tabIndex={0}
-    >
-      <span className="topic-card__type">{topic.article_type.replace("_", " ")}</span>
-      <h3>{topic.title}</h3>
-      <p>{topic.recommendation}</p>
-      <div className="score-stack">
-        {Object.entries(topic.score_detail).map(([key, score]) => (
-          <div className="score-row" key={key}>
-            <span>{scoreLabels[key]}</span>
-            <meter min="0" max="100" value={score.value} />
-            <strong>{score.value}</strong>
-          </div>
-        ))}
+    <section className="topic-pack-panel">
+      <div className="topic-pack-panel__header">
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        <button disabled={refreshing} onClick={onRefresh} type="button">
+          <Repeat size={16} /> {refreshing ? "刷新中" : refreshLabel}
+        </button>
       </div>
-      <div className="topic-card__footer">
-        <span>{topic.source_count} sources</span>
-        <span>{topic.evidence_risk} risk</span>
+      <div className="topic-pack-list">
+        {items.map((item) => {
+          const scoreSummary = item.module === "long_articles" ? topicPackScoreSummary(item) : null;
+          return (
+            <article className="topic-pack-item" key={item.id}>
+              <span>{String(item.rank).padStart(2, "0")}</span>
+              <div>
+                <h4>{item.title}</h4>
+                <p>{item.summary}</p>
+                <small>{item.angle}</small>
+                {scoreSummary ? (
+                  <div className="topic-pack-item__score">
+                    <strong>{scoreSummary.line}</strong>
+                    {scoreSummary.reasons ? <span>{scoreSummary.reasons}</span> : null}
+                  </div>
+                ) : null}
+                {item.source_urls.length ? (
+                  <div className="topic-pack-item__sources" aria-label={`${item.title} 来源`}>
+                    <span>来源</span>
+                    {item.source_urls.map((url) => (
+                      <a href={url} key={url} rel="noreferrer" target="_blank">
+                        {url}
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
+                {onGenerate && item.topic_id ? (
+                  <button
+                    className="topic-pack-item__action"
+                    disabled={generatingTopicId === item.topic_id}
+                    onClick={() => onGenerate(item)}
+                    type="button"
+                  >
+                    {generatingTopicId === item.topic_id ? "选择中" : "选择选题"}
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
-      <p className="business-hook">{topic.business_hook}</p>
-      <button
-        className="topic-card__action"
-        disabled={generating}
-        onClick={(event) => {
-          event.stopPropagation();
-          onGenerate();
-        }}
-        type="button"
-      >
-        {generating ? "选择中" : "选择选题"}
-      </button>
-    </article>
+    </section>
   );
 }
 
@@ -931,7 +1124,7 @@ function parseArticleModules(markdown: string) {
       title: "长论文解读",
       marker: "## 主文章：长论文解读",
       anchor: "#article-module-main",
-      fallback: "深度拆解论文问题、方法、实验可信度和复现价值。"
+      fallback: "深度拆解论文问题、方法、实验可信度和学术价值。"
     },
     {
       id: "article-module-hotspots",

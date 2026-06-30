@@ -3,6 +3,15 @@ export type ScoreItem = {
   reason: string;
 };
 
+export type TopicPackScoreDetail = {
+  total_score?: ScoreItem;
+  influence_score?: ScoreItem;
+  method_substance?: ScoreItem;
+  experiment_strength?: ScoreItem;
+  selection_reasons?: string[];
+  [key: string]: unknown;
+};
+
 export type Source = {
   id: string;
   name: string;
@@ -81,7 +90,7 @@ export type TopicPackItem = {
   llm_response_id: string;
   dedupe_key: string;
   angle_hash: string;
-  score_detail?: Record<string, unknown>;
+  score_detail?: TopicPackScoreDetail;
 };
 
 export type TopicPackVersion = {

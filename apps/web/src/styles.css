@@ -90,6 +90,52 @@ a:focus-visible {
   background: var(--surface);
 }
 
+.loading-panel--error {
+  width: min(720px, 100%);
+  border-color: oklch(0.650 0.170 25 / 0.72);
+  background:
+    linear-gradient(135deg, oklch(0.220 0.060 25 / 0.55), transparent 42%),
+    var(--surface);
+}
+
+.source-diagnostics {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.source-diagnostics p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.source-diagnostics__list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-diagnostic-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: oklch(0.120 0.012 220 / 0.82);
+}
+
+.source-diagnostic-row strong,
+.source-diagnostic-row small {
+  min-width: 0;
+}
+
+.source-diagnostic-row small {
+  grid-column: 2;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .side-rail {
   position: sticky;
   top: 0;
@@ -202,6 +248,30 @@ a:focus-visible {
 .refresh-card p {
   font-family: "SFMono-Regular", ui-monospace, "Cascadia Code", monospace;
   font-size: 1.05rem;
+}
+
+.refresh-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  margin-top: 2px;
+  padding: 9px 10px;
+  color: var(--bg);
+  border-color: transparent;
+  background: var(--primary);
+  font-weight: 800;
+}
+
+.refresh-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
+.refresh-card small {
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .source-strip h2,
@@ -405,6 +475,154 @@ a:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
+}
+
+.topic-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.topic-pack-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: oklch(0.145 0.014 220 / 0.82);
+}
+
+.topic-pack-panel__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.topic-pack-panel h3,
+.topic-pack-panel p,
+.topic-pack-item h4,
+.topic-pack-item p {
+  margin: 0;
+}
+
+.topic-pack-panel h3 {
+  font-size: 1rem;
+}
+
+.topic-pack-panel p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.topic-pack-panel button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.topic-pack-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.topic-pack-list {
+  display: grid;
+  gap: 8px;
+}
+
+.topic-pack-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid oklch(1 0 0 / 0.07);
+  border-radius: 8px;
+  background: oklch(0.115 0.009 225 / 0.72);
+}
+
+.topic-pack-item > span {
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.topic-pack-item h4 {
+  font-size: 0.92rem;
+  line-height: 1.38;
+}
+
+.topic-pack-item small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.topic-pack-item__score {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--primary);
+  background: oklch(0.18 0.03 240 / 0.72);
+  color: var(--text);
+}
+
+.topic-pack-item__score strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.topic-pack-item__score span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.topic-pack-item__sources {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+
+.topic-pack-item__sources span {
+  color: var(--muted);
+}
+
+.topic-pack-item__sources a {
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+
+.topic-pack-item__action {
+  margin-top: 10px;
+}
+
+.topic-pack-empty {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: oklch(0.130 0.010 220 / 0.72);
+}
+
+.topic-pack-empty h3,
+.topic-pack-empty p {
+  margin: 0;
+}
+
+.topic-pack-empty p {
+  max-width: 70ch;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .topic-card {
@@ -990,6 +1208,7 @@ pre {
   }
 
   .metric-grid,
+  .topic-pack-grid,
   .workshop-grid,
   .module-strip,
   .provider-fields {

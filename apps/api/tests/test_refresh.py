@@ -3,12 +3,42 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from ai_radar.api import create_app
-from ai_radar.models import Signal
+from ai_radar.models import Paper, Signal
 from ai_radar.pipeline import DailyPipeline
+from ai_radar.sample_data import seed_papers
 from ai_radar.storage import JsonStore
+
+
+def _scoreable_test_papers(run_date: str) -> list[Paper]:
+    papers = seed_papers(run_date)
+    return papers + [
+        papers[0].model_copy(
+            update={
+                "id": f"paper-score-lock-{index}",
+                "arxiv_id": f"2606.9100{index}",
+                "title": f"Supplemental Archive Note {index}",
+                "authors": [f"Supplemental Author {index}"],
+                "abstract": "A short archival note about tables, records, and editorial bookkeeping.",
+                "pdf_url": f"https://arxiv.org/pdf/2606.9100{index}",
+                "categories": ["stat.ME"],
+                "method_summary": "Bookkeeping note.",
+                "experiment_summary": "No experiment.",
+                "limitations": "Supplemental fixture only.",
+                "replication_value": 1,
+                "extension_topics": [],
+            }
+        )
+        for index in range(1, 6 - len(papers))
+    ]
+
+
+@pytest.fixture(autouse=True)
+def scoreable_seed_papers(monkeypatch):
+    monkeypatch.setattr("ai_radar.pipeline.seed_papers", _scoreable_test_papers)
 
 
 class TopicPackLLM:
@@ -277,6 +307,22 @@ class UrlOnlyTopicPackLLM:
         return type("Result", (), {"response_id": "resp-topic-pack-url-only", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
+class ReplacingLongArticleLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload["long_articles"] = [
+            {
+                "title": f"模型试图替换论文 {index}",
+                "summary": "这条应该只贡献文案，不能替换锁定论文。",
+                "angle": "测试锁定论文来源。",
+                "source_urls": [f"https://arxiv.org/abs/9999.0000{index}"],
+                "arxiv_id": f"9999.0000{index}",
+            }
+            for index in range(1, 6)
+        ]
+        return type("Result", (), {"response_id": "replace-test", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
 def test_refresh_status_counts_down_to_11_before_daily_refresh(tmp_path: Path):
     pipeline = DailyPipeline(JsonStore(tmp_path))
 
@@ -432,6 +478,19 @@ def test_topic_pack_accepts_url_fields_for_paper_sources(tmp_path: Path):
     assert pack.arxiv_papers[0].arxiv_id == "2501.04227"
 
 
+def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=ReplacingLongArticleLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score locked")
+
+    assert len(pack.long_articles) == 5
+    assert all(item.arxiv_id != "9999.00001" for item in pack.long_articles)
+    assert all(item.score_detail for item in pack.long_articles)
+    totals = [item.score_detail["total_score"]["value"] for item in pack.long_articles]
+    assert totals == sorted(totals, reverse=True)
+
+
 def test_topic_pack_generation_sends_compact_real_source_context_to_llm(tmp_path: Path):
     store = JsonStore(tmp_path)
     llm = TopicPackLLM()
@@ -561,6 +620,46 @@ def test_topic_pack_refresh_can_rebuild_live_sources_even_when_daily_run_exists(
         <category term="cs.AI" />
         <link title="pdf" href="https://arxiv.org/pdf/2606.29999" />
       </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.29998v1</id>
+        <updated>2026-06-20T08:21:00Z</updated>
+        <published>2026-06-20T08:21:00Z</published>
+        <title>Fresh Manual Refresh Paper Two</title>
+        <summary>Fresh paper context about language model evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.29998" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.29997v1</id>
+        <updated>2026-06-20T08:22:00Z</updated>
+        <published>2026-06-20T08:22:00Z</published>
+        <title>Fresh Manual Refresh Paper Three</title>
+        <summary>Fresh paper context about multimodal reasoning evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.29997" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.29996v1</id>
+        <updated>2026-06-20T08:23:00Z</updated>
+        <published>2026-06-20T08:23:00Z</published>
+        <title>Fresh Manual Refresh Paper Four</title>
+        <summary>Fresh paper context about agent training and evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.29996" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.29995v1</id>
+        <updated>2026-06-20T08:24:00Z</updated>
+        <published>2026-06-20T08:24:00Z</published>
+        <title>Fresh Manual Refresh Paper Five</title>
+        <summary>Fresh paper context about inference safety evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.29995" />
+      </entry>
     </feed>
     """
     rss_xml = """<?xml version="1.0"?>
@@ -622,6 +721,46 @@ def test_topic_pack_refresh_api_accepts_specific_module(tmp_path: Path):
         <author><name>Live Author</name></author>
         <category term="cs.AI" />
         <link title="pdf" href="https://arxiv.org/pdf/2606.28888" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.28887v1</id>
+        <updated>2026-06-20T08:21:00Z</updated>
+        <published>2026-06-20T08:21:00Z</published>
+        <title>API Topic Pack Refresh Paper Two</title>
+        <summary>Fresh source context about language model evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.28887" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.28886v1</id>
+        <updated>2026-06-20T08:22:00Z</updated>
+        <published>2026-06-20T08:22:00Z</published>
+        <title>API Topic Pack Refresh Paper Three</title>
+        <summary>Fresh source context about multimodal reasoning evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.28886" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.28885v1</id>
+        <updated>2026-06-20T08:23:00Z</updated>
+        <published>2026-06-20T08:23:00Z</published>
+        <title>API Topic Pack Refresh Paper Four</title>
+        <summary>Fresh source context about agent training and evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.28885" />
+      </entry>
+      <entry>
+        <id>http://arxiv.org/abs/2606.28884v1</id>
+        <updated>2026-06-20T08:24:00Z</updated>
+        <published>2026-06-20T08:24:00Z</published>
+        <title>API Topic Pack Refresh Paper Five</title>
+        <summary>Fresh source context about inference safety evaluation benchmark experiments.</summary>
+        <author><name>Live Author</name></author>
+        <category term="cs.AI" />
+        <link title="pdf" href="https://arxiv.org/pdf/2606.28884" />
       </entry>
     </feed>
     """

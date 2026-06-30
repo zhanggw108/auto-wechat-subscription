@@ -420,6 +420,41 @@ it("renders topic pool scores and business hook", () => {
   expect(screen.queryByTestId("topic-topic-agent-lab")).not.toBeInTheDocument();
 });
 
+it("hides score summaries for legacy long articles and non-long modules", () => {
+  const legacyTopicPack: TopicPackVersion = {
+    ...topicPack,
+    long_articles: topicPack.long_articles.map(({ score_detail: _scoreDetail, ...item }) => item),
+    ai_hotspots: topicPack.ai_hotspots.map((item, index) =>
+      index === 0
+        ? {
+            ...item,
+            score_detail: {
+              total_score: { value: 66, reason: "热点测试分" },
+              influence_score: { value: 11, reason: "热点影响力" },
+              method_substance: { value: 10, reason: "热点方法" },
+              experiment_strength: { value: 9, reason: "热点实验" },
+              selection_reasons: ["非长文不展示"]
+            }
+          }
+        : item
+    )
+  };
+
+  render(
+    <App
+      initialRadar={radar}
+      initialTopics={[topic]}
+      initialDraftDetail={draftDetail}
+      initialProviderSettings={providerSettings}
+      initialTopicPack={legacyTopicPack}
+    />
+  );
+
+  expect(screen.queryByText("总分 87 | 影响力 25 | 方法 18 | 实验 12")).not.toBeInTheDocument();
+  expect(screen.queryByText("总分 66 | 影响力 11 | 方法 10 | 实验 9")).not.toBeInTheDocument();
+  expect(screen.queryByText("入选原因：非长文不展示")).not.toBeInTheDocument();
+});
+
 it("shows an empty topic pack state instead of default topics before LLM generation", () => {
   render(
     <App

@@ -77,6 +77,7 @@ def test_deepseek_llm_provider_posts_chat_completions_and_reads_message_content(
         assert '"content":"Write like a careful editor."' in payload
         assert '"role":"user"' in payload
         assert '"content":"Draft evidence pack"' in payload
+        assert '"response_format":{"type":"json_object"}' in payload
         return httpx.Response(
             200,
             json={"id": "chatcmpl-1", "choices": [{"message": {"content": "DeepSeek article body"}}]},

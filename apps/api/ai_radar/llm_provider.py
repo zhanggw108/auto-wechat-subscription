@@ -90,6 +90,7 @@ class ResponsesLLMProvider:
                     {"role": "system", "content": instructions},
                     {"role": "user", "content": input_text},
                 ],
+                "response_format": {"type": "json_object"},
             }
         return {"model": self.model, "instructions": instructions, "input": input_text}
 

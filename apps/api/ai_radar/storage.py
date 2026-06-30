@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 from pydantic import BaseModel
 
-from .models import Draft, EvidenceItem, Job, Paper, Signal, Source, Topic
+from .models import Draft, EvidenceItem, Job, Paper, Signal, Source, Topic, TopicPackVersion
 
 
 class JsonStore:
@@ -29,12 +31,24 @@ class JsonStore:
                 "drafts": [],
                 "jobs": [],
                 "refreshes": {},
+                "topic_pack_versions": [],
             }
         return json.loads(self.db_path.read_text(encoding="utf-8"))
 
     def save(self, data: Dict[str, object]) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        self.db_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=self.root, prefix=".radar-db.", suffix=".tmp", delete=False) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(payload)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, self.db_path)
+        finally:
+            if temp_path and temp_path.exists():
+                temp_path.unlink()
 
     def upsert_many(self, key: str, items: Iterable[BaseModel]) -> None:
         data = self.load()
@@ -82,6 +96,30 @@ class JsonStore:
 
     def list_jobs(self) -> List[Job]:
         return [Job(**item) for item in self.load().get("jobs", [])]
+
+    def list_topic_pack_versions(self, date: Optional[str] = None) -> List[TopicPackVersion]:
+        versions = [TopicPackVersion(**item) for item in self.load().get("topic_pack_versions", [])]
+        if date:
+            versions = [item for item in versions if item.date == date]
+        return sorted(versions, key=lambda item: (item.date, item.version))
+
+    def current_topic_pack(self, date: str) -> Optional[TopicPackVersion]:
+        versions = self.list_topic_pack_versions(date)
+        if not versions:
+            return None
+        return max(versions, key=lambda item: item.version)
+
+    def topic_pack_dir(self, date: str, version: int) -> Path:
+        path = self.root / "topic-packs" / date / f"v{version:02d}"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def add_topic_pack_version(self, version: TopicPackVersion) -> None:
+        self.upsert_many("topic_pack_versions", [version])
+        directory = self.topic_pack_dir(version.date, version.version)
+        (directory / "topic-pack.json").write_text(version.model_dump_json(indent=2), encoding="utf-8")
+        prompt_summary = version.llm_prompt_summary or "LLM topic pack"
+        (directory / "prompt-summary.md").write_text(prompt_summary, encoding="utf-8")
 
     def update_topic(self, topic: Topic) -> None:
         self.upsert_many("topics", [topic])

@@ -199,6 +199,13 @@ def score_papers(
     )
 
 
+def build_score_report(topic_pack_id: str, scores: List[PaperScore]) -> Dict[str, object]:
+    return {
+        "topic_pack_id": topic_pack_id,
+        "papers": [score.to_report_dict(rank=index, selected=index <= 5) for index, score in enumerate(scores, start=1)],
+    }
+
+
 def _score_one_paper(
     paper: Paper,
     signals: List[Signal],

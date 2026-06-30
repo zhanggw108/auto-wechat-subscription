@@ -493,6 +493,20 @@ def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path)
     assert totals == sorted(totals, reverse=True)
 
 
+def test_topic_pack_refresh_writes_long_article_score_report(tmp_path: Path):
+    pipeline = DailyPipeline(JsonStore(tmp_path), llm_provider=TopicPackLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score report")
+
+    report_path = tmp_path / "topic-packs" / "2026-06-20" / "v01" / "long-article-scores.json"
+    assert report_path.exists()
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["topic_pack_id"] == pack.id
+    assert len(payload["papers"]) >= 5
+    assert payload["papers"][0]["rank"] == 1
+    assert payload["papers"][0]["selected"] is True
+
+
 def test_initial_ai_hotspots_refresh_does_not_require_scoreable_long_articles(tmp_path: Path, monkeypatch):
     with monkeypatch.context() as context:
         context.setattr("ai_radar.pipeline.seed_papers", seed_papers)

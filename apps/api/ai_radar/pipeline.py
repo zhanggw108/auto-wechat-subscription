@@ -35,7 +35,7 @@ from .models import (
 from .image_provider import Image2Provider
 from .llm_provider import ResponsesLLMProvider
 from .sample_data import seed_papers, seed_signals, seed_sources
-from .scoring import PaperScore, score_papers
+from .scoring import PaperScore, build_score_report, score_papers
 from .storage import JsonStore, slugify
 from .writer import rewrite_khazix_style
 
@@ -339,6 +339,7 @@ class DailyPipeline:
         generated = self._generate_topic_pack_candidate(run.date, generation_module, reason, previous, run.topics, run.signals, run.papers)
         response_id = generated.get("_response_id", "")
         prompt_summary = generated.get("_prompt_summary", "")
+        long_article_scores: List[PaperScore] = []
         if lock_long_articles:
             long_article_scores = self._score_long_article_papers(run)
             llm_long_articles = self._items_from_payload(
@@ -391,6 +392,12 @@ class DailyPipeline:
         self._validate_topic_pack(pack)
         if previous and validate_changed:
             self._validate_refreshed_module_changed(previous, pack, module)
+        if lock_long_articles:
+            report_path = self.store.topic_pack_dir(run.date, next_version) / "long-article-scores.json"
+            report_path.write_text(
+                json.dumps(build_score_report(pack.id, long_article_scores), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         self.store.add_topic_pack_version(pack)
         return pack
 

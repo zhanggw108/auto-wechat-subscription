@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-class InfluenceConfigError(Exception):
+class InfluenceConfigError(RuntimeError):
     pass
 
 
@@ -41,7 +41,27 @@ def load_influence_config(path: Path | None = None) -> InfluenceConfig:
         raise InfluenceConfigError(f"Failed to load JSON influence config at {config_path}: {error}") from error
 
     return InfluenceConfig(
-        institutions=[InfluenceEntry(**entry) for entry in data.get("institutions", [])],
-        people=[InfluenceEntry(**entry) for entry in data.get("people", [])],
-        source_domains=[SourceDomainEntry(**entry) for entry in data.get("source_domains", [])],
+        institutions=[
+            InfluenceEntry(
+                name=str(item["name"]),
+                aliases=[str(alias).lower() for alias in item.get("aliases", [])],
+                weight=int(item.get("weight", 0)),
+            )
+            for item in data.get("institutions", [])
+        ],
+        people=[
+            InfluenceEntry(
+                name=str(item["name"]),
+                aliases=[str(alias).lower() for alias in item.get("aliases", [])],
+                weight=int(item.get("weight", 0)),
+            )
+            for item in data.get("people", [])
+        ],
+        source_domains=[
+            SourceDomainEntry(
+                domain=str(item["domain"]).lower(),
+                weight=int(item.get("weight", 0)),
+            )
+            for item in data.get("source_domains", [])
+        ],
     )

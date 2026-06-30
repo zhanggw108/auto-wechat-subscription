@@ -279,7 +279,7 @@ class DailyPipeline:
             run_date=run.date,
         )
         if len(scores) < 5:
-            raise RuntimeError("可评分论文不足 5 篇")
+            raise RuntimeError(f"可评分论文不足 5 篇，当前 {len(scores)} 篇")
         return scores
 
     def _locked_long_article_items(
@@ -290,11 +290,16 @@ class DailyPipeline:
         llm_items: List[TopicPackItem],
         llm_response_id: str,
     ) -> List[TopicPackItem]:
-        text_by_rank = {item.rank: item for item in llm_items}
+        text_by_arxiv_id = {
+            normalize_arxiv_version(arxiv_id): item
+            for item in llm_items
+            for arxiv_id in [item.arxiv_id, *(extract_arxiv_id(url) for url in item.source_urls)]
+            if arxiv_id
+        }
         locked: List[TopicPackItem] = []
         for index, score in enumerate(scores[:5], start=1):
             paper = score.paper
-            text_item = text_by_rank.get(index)
+            text_item = text_by_arxiv_id.get(normalize_arxiv_version(paper.arxiv_id))
             title = text_item.title if text_item else paper.title
             summary = text_item.summary if text_item else paper.abstract[:280]
             angle = text_item.angle if text_item else "从问题、方法、实验和局限四个角度展开论文解读。"
@@ -307,7 +312,7 @@ class DailyPipeline:
                     title=title,
                     summary=summary,
                     angle=angle,
-                    source_urls=[f"https://arxiv.org/abs/{paper.arxiv_id}", paper.pdf_url],
+                    source_urls=list(dict.fromkeys(url for url in [f"https://arxiv.org/abs/{paper.arxiv_id}", paper.pdf_url] if url)),
                     arxiv_id=paper.arxiv_id,
                     llm_response_id=llm_response_id,
                     score_detail=_score_detail_for_topic_pack(score),
@@ -330,10 +335,11 @@ class DailyPipeline:
         if not self.llm_provider:
             raise RuntimeError("LLM provider is required to refresh topic pack")
         generation_module: TopicPackModule = module if previous else "all"
+        lock_long_articles = generation_module in {"long_articles", "all"} and module in {"long_articles", "all"}
         generated = self._generate_topic_pack_candidate(run.date, generation_module, reason, previous, run.topics, run.signals, run.papers)
         response_id = generated.get("_response_id", "")
         prompt_summary = generated.get("_prompt_summary", "")
-        if generation_module in {"long_articles", "all"}:
+        if lock_long_articles:
             long_article_scores = self._score_long_article_papers(run)
             llm_long_articles = self._items_from_payload(
                 run.date,
@@ -343,6 +349,14 @@ class DailyPipeline:
                 response_id,
             )
             long_articles = self._locked_long_article_items(run.date, next_version, long_article_scores, llm_long_articles, response_id)
+        elif generation_module in {"long_articles", "all"}:
+            long_articles = self._items_from_payload(
+                run.date,
+                next_version,
+                "long_articles",
+                generated.get("long_articles"),
+                response_id,
+            )
         else:
             long_articles = previous.long_articles if previous else []
         ai_hotspots = (previous.ai_hotspots if previous else []) if generation_module not in {"ai_hotspots", "all"} else self._items_from_payload(

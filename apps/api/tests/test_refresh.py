@@ -485,10 +485,26 @@ def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path)
     pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score locked")
 
     assert len(pack.long_articles) == 5
-    assert all(item.arxiv_id != "9999.00001" for item in pack.long_articles)
+    assert all("9999." not in (item.arxiv_id or "") for item in pack.long_articles)
+    assert all("9999." not in url for item in pack.long_articles for url in item.source_urls)
+    assert all("模型试图替换论文" not in item.title for item in pack.long_articles)
     assert all(item.score_detail for item in pack.long_articles)
     totals = [item.score_detail["total_score"]["value"] for item in pack.long_articles]
     assert totals == sorted(totals, reverse=True)
+
+
+def test_initial_ai_hotspots_refresh_does_not_require_scoreable_long_articles(tmp_path: Path, monkeypatch):
+    with monkeypatch.context() as context:
+        context.setattr("ai_radar.pipeline.seed_papers", seed_papers)
+        pipeline = DailyPipeline(JsonStore(tmp_path), llm_provider=TopicPackLLM())
+
+        pack = pipeline.refresh_topic_pack("2026-06-20", module="ai_hotspots", reason="first hotspot refresh")
+
+    assert pack.refreshed_module == "ai_hotspots"
+    assert len(pack.long_articles) == 5
+    assert len(pack.ai_hotspots) == 5
+    assert len(pack.arxiv_papers) == 5
+    assert any(item.title == "Agent eval 开始强调轨迹而不是单轮答案" for item in pack.ai_hotspots)
 
 
 def test_topic_pack_generation_sends_compact_real_source_context_to_llm(tmp_path: Path):

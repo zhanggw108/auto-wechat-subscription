@@ -24,8 +24,25 @@ def test_load_influence_config_reads_institutions_people_and_domains(tmp_path: P
 
     assert config.institutions[0].name == "OpenAI"
     assert config.institutions[0].aliases == ["openai"]
+    assert config.institutions[0].weight == 25
     assert config.people[0].aliases == ["yann lecun"]
+    assert config.people[0].weight == 20
     assert config.source_domains[0].domain == "openai.com"
+    assert config.source_domains[0].weight == 18
+
+
+def test_load_influence_config_reports_broken_structure_path(tmp_path: Path):
+    path = tmp_path / "influence_sources.json"
+    path.write_text(
+        json.dumps({"institutions": [{"name": "OpenAI"}], "people": [], "source_domains": []}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InfluenceConfigError) as error:
+        load_influence_config(path)
+
+    assert str(path) in str(error.value)
+    assert "字段" in str(error.value)
 
 
 def test_load_influence_config_reports_broken_json_path(tmp_path: Path):

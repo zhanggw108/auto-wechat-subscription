@@ -40,28 +40,47 @@ def load_influence_config(path: Path | None = None) -> InfluenceConfig:
     except (OSError, json.JSONDecodeError) as error:
         raise InfluenceConfigError(f"Failed to load JSON influence config at {config_path}: {error}") from error
 
-    return InfluenceConfig(
-        institutions=[
-            InfluenceEntry(
-                name=str(item["name"]),
-                aliases=[str(alias).lower() for alias in item.get("aliases", [])],
-                weight=int(item.get("weight", 0)),
-            )
-            for item in data.get("institutions", [])
-        ],
-        people=[
-            InfluenceEntry(
-                name=str(item["name"]),
-                aliases=[str(alias).lower() for alias in item.get("aliases", [])],
-                weight=int(item.get("weight", 0)),
-            )
-            for item in data.get("people", [])
-        ],
-        source_domains=[
-            SourceDomainEntry(
-                domain=str(item["domain"]).lower(),
-                weight=int(item.get("weight", 0)),
-            )
-            for item in data.get("source_domains", [])
-        ],
-    )
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("顶层必须是对象")
+
+        institutions = data["institutions"]
+        people = data["people"]
+        source_domains = data["source_domains"]
+        if not all(isinstance(items, list) for items in (institutions, people, source_domains)):
+            raise ValueError("institutions/people/source_domains 必须是 list")
+
+        return InfluenceConfig(
+            institutions=[
+                InfluenceEntry(
+                    name=str(item["name"]),
+                    aliases=[str(alias).strip().lower() for alias in _require_aliases(item)],
+                    weight=int(item["weight"]),
+                )
+                for item in institutions
+            ],
+            people=[
+                InfluenceEntry(
+                    name=str(item["name"]),
+                    aliases=[str(alias).strip().lower() for alias in _require_aliases(item)],
+                    weight=int(item["weight"]),
+                )
+                for item in people
+            ],
+            source_domains=[
+                SourceDomainEntry(
+                    domain=str(item["domain"]).strip().lower(),
+                    weight=int(item["weight"]),
+                )
+                for item in source_domains
+            ],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise InfluenceConfigError(f"配置结构或字段错误 at {config_path}: {error}") from error
+
+
+def _require_aliases(item: object) -> list[object]:
+    aliases = item["aliases"]  # type: ignore[index]
+    if not isinstance(aliases, list):
+        raise ValueError("aliases 必须是 list")
+    return aliases

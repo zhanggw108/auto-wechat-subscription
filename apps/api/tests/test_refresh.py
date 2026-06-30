@@ -13,6 +13,29 @@ from ai_radar.sample_data import seed_papers
 from ai_radar.storage import JsonStore
 
 
+def _fake_long_articles_for_prompt(input_text: str) -> list[dict[str, object]]:
+    locked = json.loads(input_text).get("locked_long_articles") or []
+    papers = list(locked or json.loads(input_text).get("papers") or [])
+    while len(papers) < 5:
+        index = len(papers) + 1
+        papers.append(
+            {
+                "arxiv_id": f"2606.9900{index}",
+                "title": f"补充论文 {index}",
+            }
+        )
+    return [
+        {
+            "title": f"第{index}篇高分论文的中文深度解读",
+            "summary": f"这篇论文适合做长文，因为它的问题设定、方法设计和实验材料都足够展开，核心论文编号是 {paper['arxiv_id']}。",
+            "angle": "重点写研究问题为什么重要、方法机制如何成立、实验结果是否可靠，以及局限会怎样影响后续工作。",
+            "source_urls": [f"https://arxiv.org/abs/{paper['arxiv_id']}"],
+            "arxiv_id": paper["arxiv_id"],
+        }
+        for index, paper in enumerate(papers[:5], start=1)
+    ]
+
+
 def _scoreable_test_papers(run_date: str) -> list[Paper]:
     papers = seed_papers(run_date)
     return papers + [
@@ -50,43 +73,7 @@ class TopicPackLLM:
 
         text = """
 {
-  "long_articles": [
-    {
-      "title": "研究型 Agent 从灵感机器变成实验管理员",
-      "summary": "从 Agent Laboratory 的流程拆解研究型 agent 的真实边界。",
-      "angle": "避开自动科研叙事，重点写实验规划、证据链和人类反馈。",
-      "source_urls": ["https://arxiv.org/abs/2501.04227"],
-      "arxiv_id": "2501.04227"
-    },
-    {
-      "title": "长上下文不是 RAG 的终点，而是路由问题的开始",
-      "summary": "用长上下文和 RAG 的对比论文解释实验设计切口。",
-      "angle": "把二选一争论改写成质量、成本和可解释性的实验路线。",
-      "source_urls": ["https://arxiv.org/abs/2407.16833"],
-      "arxiv_id": "2407.16833"
-    },
-    {
-      "title": "AgentBench 仍值得作为交互式评测长文入口",
-      "summary": "围绕交互环境评测 agent 的任务设计和失败模式展开。",
-      "angle": "重点写轨迹、长期推理和指令遵循的评测边界。",
-      "source_urls": ["https://arxiv.org/abs/2308.03688"],
-      "arxiv_id": "2308.03688"
-    },
-    {
-      "title": "Self-Route 把长上下文成本问题变成系统设计问题",
-      "summary": "从路由机制解释为什么 RAG 和长上下文不是简单替代关系。",
-      "angle": "重点写质量、成本和可解释性的三角取舍。",
-      "source_urls": ["https://arxiv.org/abs/2407.16833"],
-      "arxiv_id": "2407.16833v2"
-    },
-    {
-      "title": "Trace-based Agent Evaluation 适合写成评测方法长文",
-      "summary": "用过程日志和评价器可靠性切入 agent 评测。",
-      "angle": "重点写从结果评测到过程评测的迁移。",
-      "source_urls": ["https://example.com/trace-agent-eval"],
-      "arxiv_id": "2606.00001"
-    }
-  ],
+  "long_articles": [],
   "ai_hotspots": [
     {
       "title": "Agent eval 开始强调轨迹而不是单轮答案",
@@ -158,6 +145,9 @@ class TopicPackLLM:
   ]
 }
 """
+        payload = json.loads(text)
+        payload["long_articles"] = _fake_long_articles_for_prompt(input_text)
+        text = json.dumps(payload, ensure_ascii=False)
         if len(self.calls) > 1:
             replacements = [
                 "Agent eval 开始强调轨迹而不是单轮答案",
@@ -185,43 +175,7 @@ class AcademicTopicPackLLM:
         self.calls.append({"instructions": instructions, "input_text": input_text})
         text = """
 {
-  "long_articles": [
-    {
-      "title": "DiffusionGemma 为什么值得认真读",
-      "summary": "围绕扩散式语言模型的研究价值做深度解读。",
-      "angle": "重点解释论文问题、方法贡献、实验可信度和局限。",
-      "source_urls": ["https://arxiv.org/abs/2606.20560"],
-      "arxiv_id": "2606.20560"
-    },
-    {
-      "title": "端侧物理 AI Serving 的执行状态复用问题",
-      "summary": "从低延迟 serving 论文切入解释系统贡献。",
-      "angle": "重点看执行状态 checkpoint 与恢复机制。",
-      "source_urls": ["https://arxiv.org/abs/2606.20537"],
-      "arxiv_id": "2606.20537"
-    },
-    {
-      "title": "多模态推理评测为什么仍然难做",
-      "summary": "围绕多模态 benchmark 的任务设计和评价方式做长文。",
-      "angle": "重点看评测集构造、失败样例和指标边界。",
-      "source_urls": ["https://arxiv.org/abs/2606.20001"],
-      "arxiv_id": "2606.20001"
-    },
-    {
-      "title": "AI Safety 部署前模拟实验怎么读",
-      "summary": "从部署前模拟和安全评测角度解读论文。",
-      "angle": "重点看风险建模、实验设置和结论外推边界。",
-      "source_urls": ["https://arxiv.org/abs/2606.20002"],
-      "arxiv_id": "2606.20002"
-    },
-    {
-      "title": "高效 Transformer 训练论文的真实价值",
-      "summary": "从训练方法和实验消融切入判断工程可复现性。",
-      "angle": "重点看效率收益是否来自方法本身还是实验设置。",
-      "source_urls": ["https://arxiv.org/abs/2606.20003"],
-      "arxiv_id": "2606.20003"
-    }
-  ],
+  "long_articles": [],
   "ai_hotspots": [
     {
       "title": "开源项目 swarmauri-sdk 更新",
@@ -293,6 +247,9 @@ class AcademicTopicPackLLM:
   ]
 }
 """
+        payload = json.loads(text)
+        payload["long_articles"] = _fake_long_articles_for_prompt(input_text)
+        text = json.dumps(payload, ensure_ascii=False)
         return type("Result", (), {"response_id": "resp-academic-topic-pack", "text": text})()
 
 
@@ -323,11 +280,12 @@ class ReplacingLongArticleLLM:
         return type("Result", (), {"response_id": "replace-test", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
-class WrongTitleLongArticleLLM:
+class WrongArxivLongArticleLLM:
     def complete(self, instructions: str, input_text: str):
         payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
-        payload["long_articles"][0]["title"] = "完全错误的行业新闻标题"
-        return type("Result", (), {"response_id": "wrong-title-test", "text": json.dumps(payload, ensure_ascii=False)})()
+        payload["long_articles"][0]["source_urls"] = ["https://arxiv.org/abs/9999.00001"]
+        payload["long_articles"][0]["arxiv_id"] = "9999.00001"
+        return type("Result", (), {"response_id": "wrong-arxiv-test", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
 class MissingLongArticlesLLM:
@@ -503,55 +461,24 @@ def test_topic_pack_long_articles_are_selected_by_scores_not_llm(tmp_path: Path)
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=ReplacingLongArticleLLM())
 
-    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score locked")
-
-    assert len(pack.long_articles) == 5
-    assert all("9999." not in (item.arxiv_id or "") for item in pack.long_articles)
-    assert all("9999." not in url for item in pack.long_articles for url in item.source_urls)
-    assert all("模型试图替换论文" not in item.title for item in pack.long_articles)
-    assert all(item.score_detail for item in pack.long_articles)
-    totals = [item.score_detail["total_score"]["value"] for item in pack.long_articles]
-    assert totals == sorted(totals, reverse=True)
+    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+        pipeline.refresh_topic_pack("2026-06-20", module="all", reason="score locked")
 
 
-def test_topic_pack_rejects_mismatched_llm_title_for_locked_paper(tmp_path: Path):
+def test_topic_pack_rejects_missing_llm_copy_for_locked_paper(tmp_path: Path):
     store = JsonStore(tmp_path)
-    pipeline = DailyPipeline(store, llm_provider=WrongTitleLongArticleLLM())
+    pipeline = DailyPipeline(store, llm_provider=WrongArxivLongArticleLLM())
 
-    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject mismatched llm copy")
-
-    item = next(item for item in pack.long_articles if item.arxiv_id == "2501.04227")
-    assert item.title.startswith("为什么值得读：")
-    assert item.title != "完全错误的行业新闻标题"
+    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+        pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject mismatched llm copy")
 
 
-def test_topic_pack_all_refresh_keeps_successful_modules_when_long_articles_missing(tmp_path: Path):
+def test_topic_pack_all_refresh_fails_when_long_articles_missing(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=MissingLongArticlesLLM())
 
-    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial schema")
-    current = pipeline.ensure_topic_pack("2026-06-20")
-
-    assert pack.status == "partial"
-    assert current.id == pack.id
-    assert len(pack.long_articles) == 5
-    assert len(pack.ai_hotspots) == 5
-    assert len(pack.arxiv_papers) == 5
-    assert all(item.score_detail for item in pack.long_articles)
-    assert pack.llm_response_id == "missing-long-articles"
-
-
-def test_locked_long_article_fallback_copy_is_chinese_and_specific(tmp_path: Path):
-    store = JsonStore(tmp_path)
-    pipeline = DailyPipeline(store, llm_provider=MissingLongArticlesLLM())
-
-    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="fallback copy")
-
-    for item in pack.long_articles:
-        assert item.title.startswith("为什么值得读：")
-        assert "从问题、方法、实验和局限四个角度展开论文解读。" not in item.angle
-        assert "这篇论文适合先按" in item.angle
-        assert "这篇论文入选长文候选" in item.summary
+    with pytest.raises(RuntimeError, match="LLM response missing usable long_articles copy"):
+        pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial schema")
 
 
 def test_topic_pack_all_refresh_returns_partial_pack_when_secondary_module_missing(tmp_path: Path):

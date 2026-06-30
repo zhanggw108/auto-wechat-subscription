@@ -300,20 +300,17 @@ class DailyPipeline:
         for index, score in enumerate(scores[:5], start=1):
             paper = score.paper
             text_item = text_by_arxiv_id.get(normalize_arxiv_version(paper.arxiv_id))
-            if text_item and not _llm_item_matches_paper(text_item, paper):
-                text_item = None
-            title = text_item.title if text_item else fallback_topic_pack_title(paper)
-            summary = text_item.summary if text_item else fallback_topic_pack_summary(paper, score)
-            angle = text_item.angle if text_item else fallback_topic_pack_angle(paper)
+            if not text_item or not all(is_publishable_chinese_text(value) for value in (text_item.title, text_item.summary, text_item.angle)):
+                raise RuntimeError("LLM response missing usable long_articles copy")
             locked.append(
                 self._make_topic_pack_item(
                     run_date=run_date,
                     version=version,
                     module="long_articles",
                     rank=index,
-                    title=title,
-                    summary=summary,
-                    angle=angle,
+                    title=text_item.title,
+                    summary=text_item.summary,
+                    angle=text_item.angle,
                     source_urls=list(dict.fromkeys(url for url in [f"https://arxiv.org/abs/{paper.arxiv_id}", paper.pdf_url] if url)),
                     arxiv_id=paper.arxiv_id,
                     llm_response_id=llm_response_id,
@@ -338,13 +335,23 @@ class DailyPipeline:
             raise RuntimeError("LLM provider is required to refresh topic pack")
         generation_module: TopicPackModule = module if previous else "all"
         lock_long_articles = generation_module in {"long_articles", "all"} and module in {"long_articles", "all"}
-        generated = self._generate_topic_pack_candidate(run.date, generation_module, reason, previous, run.topics, run.signals, run.papers)
-        response_id = generated.get("_response_id", "")
-        prompt_summary = generated.get("_prompt_summary", "")
         long_article_scores: List[PaperScore] = []
         missing_modules: List[Literal["long_articles", "ai_hotspots", "arxiv_papers"]] = []
         if lock_long_articles:
             long_article_scores = self._score_long_article_papers(run)
+        generated = self._generate_topic_pack_candidate(
+            run.date,
+            generation_module,
+            reason,
+            previous,
+            run.topics,
+            run.signals,
+            run.papers,
+            long_article_scores[:5] if lock_long_articles else None,
+        )
+        response_id = generated.get("_response_id", "")
+        prompt_summary = generated.get("_prompt_summary", "")
+        if lock_long_articles:
             llm_long_articles = self._items_from_payload_or_empty(
                 run.date,
                 next_version,
@@ -676,6 +683,7 @@ class DailyPipeline:
         topics: List[Topic],
         signals: List[Signal],
         papers: List[Paper],
+        locked_long_article_scores: List[PaperScore] | None = None,
     ) -> Dict[str, object]:
         prompt_summary = f"刷新模块：{module}；日期：{run_date}；原因：{reason or 'manual refresh'}"
         if not self.llm_provider:
@@ -687,6 +695,8 @@ class DailyPipeline:
             "整体标准是学术价值优先：优先问题重要、方法有贡献、实验扎实、近期仍值得读的 AI 论文，"
             "不局限 Agent/RAG，覆盖 LLM、多模态、生成模型、AI safety、推理效率、训练方法、评测、AI coding、AI4Science、机器人等方向。"
             "long_articles 必须是近期重要 AI 论文深度解读候选，每条必须包含 arxiv_id 或 arXiv/PDF 论文 URL；"
+            "如果输入包含 locked_long_articles，long_articles 必须逐条覆盖其中所有 arxiv_id，"
+            "只为这些论文生成可直接发布的中文 title、summary、angle，不得替换论文。"
             "不得把 GitHub 项目、产品新闻、公司动态或泛话题单独放进 long_articles。"
             "ai_hotspots 承接 AI 热点、官方博客、产品动态、GitHub 开源项目和社区讨论；GitHub 主要进入 ai_hotspots。"
             "arxiv_papers 是 5-10 篇值得关注的论文速报，按学术价值排序，不按传播热度单独决定。"
@@ -710,6 +720,7 @@ class DailyPipeline:
                 },
                 "signals": compact_signals(signals),
                 "papers": compact_papers(papers),
+                "locked_long_articles": compact_locked_long_articles(locked_long_article_scores or []),
                 "topics": compact_topics(topics),
             },
             ensure_ascii=False,
@@ -2354,6 +2365,21 @@ def compact_papers(papers: List[Paper], limit: int = 10) -> List[Dict[str, objec
     ]
 
 
+def compact_locked_long_articles(scores: List[PaperScore]) -> List[Dict[str, object]]:
+    return [
+        {
+            "rank": index,
+            "arxiv_id": score.paper.arxiv_id,
+            "title": score.paper.title,
+            "abstract": score.paper.abstract[:800],
+            "pdf_url": score.paper.pdf_url,
+            "total_score": score.total_score,
+            "selection_reasons": score.selection_reasons,
+        }
+        for index, score in enumerate(scores, start=1)
+    ]
+
+
 def compact_topics(topics: List[Topic], limit: int = 10) -> List[Dict[str, object]]:
     ranked = sorted(topics, key=lambda topic: topic.score_total, reverse=True)[:limit]
     return [
@@ -2423,46 +2449,6 @@ def _score_detail_for_topic_pack(score: PaperScore) -> Dict[str, object]:
         "matched_source_domains": score.matched_source_domains,
         "matched_signals": score.matched_signals,
     }
-
-
-def fallback_topic_pack_title(paper: Paper) -> str:
-    return f"为什么值得读：{zh_paper_focus(paper)}"
-
-
-def fallback_topic_pack_summary(paper: Paper, score: PaperScore) -> str:
-    reasons = "；".join(score.selection_reasons[:2]) if score.selection_reasons else "量化评分进入前五"
-    return f"这篇论文入选长文候选，核心看点是{zh_paper_focus(paper)}。入选依据：{reasons}。"
-
-
-def fallback_topic_pack_angle(paper: Paper) -> str:
-    focus = zh_paper_focus(paper)
-    return f"这篇论文适合先按“{focus}”来读：重点看它试图解决的研究矛盾、机制设计是否清楚，以及实验是否足以支撑结论。"
-
-
-def _llm_item_matches_paper(item: TopicPackItem, paper: Paper) -> bool:
-    paper_arxiv_id = normalize_arxiv_version(paper.arxiv_id)
-    item_arxiv_ids = {
-        normalize_arxiv_version(arxiv_id)
-        for arxiv_id in [item.arxiv_id, *(extract_arxiv_id(url) for url in item.source_urls)]
-        if arxiv_id
-    }
-    if paper_arxiv_id not in item_arxiv_ids:
-        return False
-    return _title_matches_paper(item.title, paper.title)
-
-
-def _title_matches_paper(llm_title: str, paper_title: str) -> bool:
-    llm_normalized = normalize_dedupe(llm_title)
-    paper_normalized = normalize_dedupe(paper_title)
-    if not llm_normalized or not paper_normalized:
-        return False
-    if llm_normalized in paper_normalized or paper_normalized in llm_normalized:
-        return True
-    llm_tokens = set(re.findall(r"[a-z0-9]{3,}", llm_normalized))
-    paper_tokens = set(re.findall(r"[a-z0-9]{3,}", paper_normalized))
-    if llm_tokens.intersection(paper_tokens):
-        return True
-    return SequenceMatcher(None, llm_normalized, paper_normalized).ratio() >= 0.35
 
 
 def normalize_arxiv_version(value: str) -> str:

@@ -207,7 +207,7 @@ def create_app(
     @app.post("/api/drafts/{draft_id}/refresh-module")
     def refresh_module(draft_id: str, request: RefreshModuleRequest):
         try:
-            return pipeline.refresh_module(draft_id, request.module, request.reason)
+            return pipeline.refresh_module(draft_id, request.module, request.reason, narrative_type=request.narrative_type)
         except KeyError:
             raise HTTPException(status_code=404, detail="Draft not found")
         except RuntimeError as error:

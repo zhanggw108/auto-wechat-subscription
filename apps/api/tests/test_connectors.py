@@ -144,6 +144,35 @@ def test_image2_provider_decodes_responses_image_output(tmp_path: Path):
     assert result.path.read_bytes() == png
 
 
+def test_image2_provider_allows_per_request_size(tmp_path: Path):
+    png = b"\x89PNG\r\n\x1a\nfake"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode("utf-8"))
+        assert body["tools"][0]["size"] == "1504x640"
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp-cover",
+                "output": [
+                    {
+                        "type": "image_generation_call",
+                        "result": base64.b64encode(png).decode("ascii"),
+                    }
+                ],
+            },
+        )
+
+    provider = Image2Provider(
+        base_url="https://image2.example.com/v1",
+        api_key="test-key",
+        model="relay-image-model",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    provider.generate("draw cover", tmp_path / "cover.png", size="1504x640")
+
+
 def test_image2_provider_from_env_uses_image_generation_timeout_by_default(monkeypatch):
     monkeypatch.setenv("IMAGE2_BASE_URL", "https://image2.example.com/v1")
     monkeypatch.setenv("IMAGE2_API_KEY", "test-key")

@@ -84,14 +84,16 @@ class ResponsesLLMProvider:
 
     def _request_body(self, instructions: str, input_text: str) -> dict:
         if self.provider == "deepseek":
-            return {
+            body = {
                 "model": self.model,
                 "messages": [
                     {"role": "system", "content": instructions},
                     {"role": "user", "content": input_text},
                 ],
-                "response_format": {"type": "json_object"},
             }
+            if "json" in f"{instructions}\n{input_text}".lower():
+                body["response_format"] = {"type": "json_object"}
+            return body
         return {"model": self.model, "instructions": instructions, "input": input_text}
 
 

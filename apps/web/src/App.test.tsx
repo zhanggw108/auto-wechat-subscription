@@ -211,7 +211,13 @@ const topicPack: TopicPackVersion = {
         influence_score: { value: 25, reason: "高影响力来源" },
         method_substance: { value: 18, reason: "方法完整" },
         experiment_strength: { value: 12, reason: "实验可信" },
-        selection_reasons: ["总分进入前 5", "命中高影响力机构"]
+        selection_reasons: ["总分进入前 5", "命中高影响力机构"],
+        recommended_narrative: {
+          type: "evaluation_review",
+          label: "评测复盘型",
+          reason: "标题和摘要命中 benchmark、evaluation、SWE-bench，核心价值是重新定义评测口径。",
+          alternatives: ["application_translation"]
+        }
       }
     },
     {
@@ -280,6 +286,7 @@ const topicPack: TopicPackVersion = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  window.localStorage.clear();
   window.history.replaceState(null, "", "/");
   Element.prototype.scrollIntoView = vi.fn();
 });
@@ -316,6 +323,27 @@ it("renders the scheduled refresh countdown", () => {
   expect(screen.getByText("下次刷新 11:00")).toBeInTheDocument();
   expect(screen.getByText("还有 00:30:00")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "刷新全部选题" })).toBeInTheDocument();
+});
+
+it("explains tomorrow refresh time after today's refresh has already run", () => {
+  render(
+    <App
+      initialRadar={radar}
+      initialTopics={[topic]}
+      initialDraftDetail={draftDetail}
+      initialProviderSettings={providerSettings}
+      initialRefreshStatus={{
+        ...refreshStatus,
+        today_refreshed: true,
+        last_refresh_at: "2026-06-20T00:02:35",
+        next_refresh_at: "2026-06-21T11:00:00",
+        seconds_until_next_refresh: 87825
+      }}
+    />
+  );
+
+  expect(screen.getByText("今日已刷新，下次自动刷新为明天 11:00（北京时间）")).toBeInTheDocument();
+  expect(screen.getByText("还有 24:23:45")).toBeInTheDocument();
 });
 
 it("manually refreshes today's topic pool and reloads the package", async () => {
@@ -416,6 +444,8 @@ it("renders topic pool scores and business hook", () => {
   expect(screen.getByText("论文解读候选一")).toBeInTheDocument();
   expect(screen.getByText("总分 87 | 影响力 25 | 方法 18 | 实验 12")).toBeInTheDocument();
   expect(screen.getByText("入选原因：总分进入前 5；命中高影响力机构")).toBeInTheDocument();
+  expect(screen.getByText("推荐写法：评测复盘型")).toBeInTheDocument();
+  expect(screen.getByText("标题和摘要命中 benchmark、evaluation、SWE-bench，核心价值是重新定义评测口径。")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "https://arxiv.org/abs/2501.04227" })).toBeInTheDocument();
   expect(screen.queryByTestId("topic-topic-agent-lab")).not.toBeInTheDocument();
 });
@@ -482,6 +512,9 @@ it("loads the app with an empty topic pack state when the current LLM pack is mi
       if (path.includes("/api/radar/today")) {
         return Promise.resolve({ ok: true, json: async () => radar });
       }
+      if (path.includes("/api/drafts?date=")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
       if (path.includes("/api/topics")) {
         return Promise.resolve({ ok: true, json: async () => [topic] });
       }
@@ -491,6 +524,9 @@ it("loads the app with an empty topic pack state when the current LLM pack is mi
           status: 404,
           json: async () => ({ detail: "Topic pack not generated yet" })
         });
+      }
+      if (path.includes("/api/drafts?date=")) {
+        return Promise.resolve({ ok: true, json: async () => [radar.draft] });
       }
       if (path.includes("/api/drafts/")) {
         return Promise.resolve({ ok: true, json: async () => draftDetail });
@@ -510,6 +546,104 @@ it("loads the app with an empty topic pack state when the current LLM pack is mi
   expect(await screen.findByRole("heading", { name: "今日雷达" })).toBeInTheDocument();
   expect(screen.getByText("今日选题还没有由 LLM 生成")).toBeInTheDocument();
   expect(screen.queryByTestId("topic-topic-agent-lab")).not.toBeInTheDocument();
+});
+
+it("reloads the latest updated daily draft instead of the default daily draft", async () => {
+  window.localStorage.setItem("ai-radar:last-draft-id", radar.draft.id);
+  const recentDraftDetail: DraftDetail = {
+    ...draftDetail,
+    draft: { ...radar.draft, id: "draft-recent-long-article", version: 4 },
+    markdown:
+      "# 今日 AI 论文与热点文章包\n\n## 主文章：长论文解读\n\n刷新后仍然加载最近生成的长文。\n\n## 次文章 1：AI 热点\n\n热点\n\n## 次文章 2：arXiv 高热度文章速报\n\n速报"
+  };
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const path = String(input);
+    if (path.includes("/api/refresh/due")) {
+      return Promise.resolve({ ok: true, json: async () => refreshStatus });
+    }
+    if (path.includes("/api/radar/today")) {
+      return Promise.resolve({ ok: true, json: async () => radar });
+    }
+    if (path.includes("/api/topics")) {
+      return Promise.resolve({ ok: true, json: async () => [topic] });
+    }
+    if (path.includes("/api/topic-packs/current")) {
+      return Promise.resolve({ ok: true, json: async () => topicPack });
+    }
+    if (path.includes("/api/drafts?date=")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [
+          { ...radar.draft, updated_at: "2026-06-20T08:40:00Z" },
+          { ...recentDraftDetail.draft, updated_at: "2026-06-20T09:00:00Z" }
+        ]
+      });
+    }
+    if (path.includes("/api/drafts/draft-recent-long-article")) {
+      return Promise.resolve({ ok: true, json: async () => recentDraftDetail });
+    }
+    if (path.includes("/api/drafts/")) {
+      return Promise.resolve({ ok: true, json: async () => draftDetail });
+    }
+    if (path.includes("/api/settings/providers")) {
+      return Promise.resolve({ ok: true, json: async () => providerSettings });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+
+  const mainPanel = await screen.findByTestId("article-module-main");
+  expect(await within(mainPanel).findByText("刷新后仍然加载最近生成的长文。")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/drafts/draft-recent-long-article");
+  expect(window.localStorage.getItem("ai-radar:last-draft-id")).toBe("draft-recent-long-article");
+});
+
+it("falls back to the daily draft when the remembered draft is gone", async () => {
+  window.localStorage.setItem("ai-radar:last-draft-id", "draft-missing");
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const path = String(input);
+    if (path.includes("/api/refresh/due")) {
+      return Promise.resolve({ ok: true, json: async () => refreshStatus });
+    }
+    if (path.includes("/api/radar/today")) {
+      return Promise.resolve({ ok: true, json: async () => radar });
+    }
+    if (path.includes("/api/drafts?date=")) {
+      return Promise.resolve({ ok: true, json: async () => [] });
+    }
+    if (path.includes("/api/topics")) {
+      return Promise.resolve({ ok: true, json: async () => [topic] });
+    }
+    if (path.includes("/api/topic-packs/current")) {
+      return Promise.resolve({ ok: true, json: async () => topicPack });
+    }
+    if (path.includes("/api/drafts/draft-missing")) {
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({ detail: "Not found" }) });
+    }
+    if (path.includes(`/api/drafts/${radar.draft.id}`)) {
+      return Promise.resolve({ ok: true, json: async () => draftDetail });
+    }
+    if (path.includes("/api/settings/providers")) {
+      return Promise.resolve({ ok: true, json: async () => providerSettings });
+    }
+    if (path.includes("/api/sources")) {
+      return Promise.resolve({ ok: true, json: async () => [] });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) });
+  });
+  vi.stubGlobal(
+    "fetch",
+    fetchMock
+  );
+
+  render(<App />);
+
+  await screen.findByRole("heading", { name: "今日雷达" });
+  expect(fetchMock).toHaveBeenCalledWith("/api/drafts/draft-missing");
+  expect(fetchMock).toHaveBeenCalledWith(`/api/drafts/${radar.draft.id}`);
+  expect(window.localStorage.getItem("ai-radar:last-draft-id")).toBe(radar.draft.id);
 });
 
 it("shows strict live source failures with source-level diagnostics during startup", async () => {
@@ -616,7 +750,7 @@ it("renders article workshop package with markdown, html, sources, and checklist
   expect(screen.getByRole("button", { name: "重跑整篇" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "重跑风格" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "重跑封面素材" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "重跑机制图素材" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "重跑正文配图" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "刷新 HTML" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "生成长文" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "生成 AI 热点" })).toBeInTheDocument();
@@ -747,7 +881,7 @@ it("selecting a long-article topic pack item loads a pending workshop draft with
         ...draftDetail,
         draft: { ...radar.draft, version: 2, last_rerun_stage: "draft" },
         markdown:
-          "# 今日 AI 论文与热点文章包\n\n## 主文章：长论文解读\n\n### 待生成\n\n当前已选择：Agent Laboratory 会不会改变 AI 论文实验设计？\n\n点击“生成长文”后，系统会围绕这篇论文生成中文深度解读，并调用 image2 生成封面图和机制图。\n\n## 次文章 1：AI 热点\n\n热点\n\n## 次文章 2：arXiv 高热度文章速报\n\n速报"
+          "# 今日 AI 论文与热点文章包\n\n## 主文章：长论文解读\n\n### 待生成\n\n当前已选择：Agent Laboratory 会不会改变 AI 论文实验设计？\n\n点击“生成长文”后，系统会围绕这篇论文生成中文深度解读，并另行准备发布素材。\n\n## 次文章 1：AI 热点\n\n热点\n\n## 次文章 2：arXiv 高热度文章速报\n\n速报"
       })
     })
   );
@@ -813,7 +947,7 @@ it("refreshes an individual article module and reloads draft detail", async () =
   fireEvent.click(screen.getByRole("button", { name: "生成 AI 热点" }));
 
   expect(await within(screen.getByTestId("article-module-hotspots")).findByText("刷新后的热点。")).toBeInTheDocument();
-  expect(refreshDraftModule).toHaveBeenCalledWith(radar.draft.id, "hotspots");
+  expect(refreshDraftModule).toHaveBeenCalledWith(radar.draft.id, "hotspots", undefined);
 });
 
 it("generates only the selected article module from the workshop action", async () => {
@@ -850,8 +984,57 @@ it("generates only the selected article module from the workshop action", async 
   expect(await within(screen.getByTestId("article-module-main")).findByText("只生成主文章模块。")).toBeInTheDocument();
   expect(screen.queryByTestId("article-module-hotspots")).not.toBeInTheDocument();
   expect(screen.queryByTestId("article-module-arxiv")).not.toBeInTheDocument();
-  expect(refreshDraftModule).toHaveBeenCalledWith(radar.draft.id, "main");
+  expect(refreshDraftModule).toHaveBeenCalledWith(radar.draft.id, "main", "trend_slice");
   expect(generateTopicDraft).not.toHaveBeenCalled();
+});
+
+it("sends selected narrative type when generating the main article", async () => {
+  vi.mocked(refreshDraftModule).mockResolvedValue({
+    ...radar.draft,
+    version: 2,
+    last_rerun_stage: "refresh:main"
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.includes("/api/drafts/")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ...draftDetail,
+            draft: { ...radar.draft, version: 2, last_rerun_stage: "refresh:main" }
+          })
+        });
+      }
+      if (path.includes("/api/radar/today")) {
+        return Promise.resolve({ ok: true, json: async () => radar });
+      }
+      if (path.includes("/api/topics")) {
+        return Promise.resolve({ ok: true, json: async () => [topic] });
+      }
+      if (path.includes("/api/topic-packs/current")) {
+        return Promise.resolve({ ok: true, json: async () => topicPack });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    })
+  );
+
+  render(
+    <App
+      initialRadar={radar}
+      initialTopics={[topic]}
+      initialDraftDetail={draftDetail}
+      initialProviderSettings={providerSettings}
+      initialTopicPack={topicPack}
+    />
+  );
+
+  fireEvent.change(screen.getByLabelText("长文写法"), { target: { value: "application_translation" } });
+  fireEvent.click(screen.getByRole("button", { name: "生成长文" }));
+
+  expect(await screen.findByText("已生成长文 v2")).toBeInTheDocument();
+  expect(refreshDraftModule).toHaveBeenCalledWith(radar.draft.id, "main", "application_translation");
 });
 
 it("shows visible progress and success feedback when generating a long article", async () => {
@@ -993,6 +1176,7 @@ it("reruns cover and shows the generated visual asset in the workshop", async ()
         prompt: "研究雷达锁定一篇高价值 AI 论文",
         revised_prompt: "revised cover prompt",
         path: "drafts/2026-06-20/agent-lab/cover.png",
+        insert_after: "# 今日 AI 论文与热点文章包",
         width: 1536,
         height: 1024,
         provider: "image2",
@@ -1019,6 +1203,7 @@ it("reruns cover and shows the generated visual asset in the workshop", async ()
               prompt: "研究雷达锁定一篇高价值 AI 论文",
               revised_prompt: "revised cover prompt",
               path: "drafts/2026-06-20/agent-lab/cover.png",
+              insert_after: "# 今日 AI 论文与热点文章包",
               width: 1536,
               height: 1024,
               provider: "image2",
@@ -1044,7 +1229,8 @@ it("reruns cover and shows the generated visual asset in the workshop", async ()
   fireEvent.click(screen.getByRole("button", { name: "重跑封面素材" }));
 
   const assetsPanel = await screen.findByTestId("draft-assets-panel");
-  expect(within(assetsPanel).getByText("cover")).toBeInTheDocument();
+  expect(within(assetsPanel).getByText("封面")).toBeInTheDocument();
+  expect(within(assetsPanel).getByText("建议插入位置：# 今日 AI 论文与热点文章包")).toBeInTheDocument();
   expect(within(assetsPanel).getByText("drafts/2026-06-20/agent-lab/cover.png")).toBeInTheDocument();
   expect(within(assetsPanel).getByText("image2")).toBeInTheDocument();
   expect(rerunDraft).toHaveBeenCalledWith(radar.draft.id, "cover");

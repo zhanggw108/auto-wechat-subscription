@@ -100,10 +100,10 @@ class TopicPackLLM:
       "source_urls": ["https://github.com/langchain-ai/langgraph"]
     },
     {
-      "title": "AgentBench 仍是交互式 agent 评测参照物",
-      "summary": "多环境任务能暴露长期推理和指令遵循失败。",
-      "angle": "适合扩展成评测综述的小节。",
-      "source_urls": ["https://arxiv.org/abs/2308.03688"]
+      "title": "AgentBench 评测实践进入开源工具讨论",
+      "summary": "社区开始把交互式 agent 评测做成可复用工具。",
+      "angle": "适合扩展成评测工程化的小节。",
+      "source_urls": ["https://github.com/openai/evals"]
     }
   ],
   "arxiv_papers": [
@@ -309,6 +309,37 @@ class MissingHotspotsLLM:
         return type("Result", (), {"response_id": "missing-hotspots", "text": json.dumps(payload, ensure_ascii=False)})()
 
 
+class PaperOnlyHotspotsLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload["ai_hotspots"] = [
+            {
+                "title": f"错误论文热点 {index}",
+                "summary": "这条不应该进入 AI 热点。",
+                "angle": "论文来源必须进入 arXiv 速报。",
+                "source_urls": [f"https://arxiv.org/abs/2606.3200{index}"],
+                "arxiv_id": f"2606.3200{index}",
+            }
+            for index in range(1, 6)
+        ]
+        return type("Result", (), {"response_id": "paper-only-hotspots", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
+class EmptySourceHotspotsLLM:
+    def complete(self, instructions: str, input_text: str):
+        payload = json.loads(TopicPackLLM().complete(instructions, input_text).text)
+        payload["ai_hotspots"] = [
+            {
+                "title": f"无来源热点 {index}",
+                "summary": "这条不应该进入 AI 热点。",
+                "angle": "热点必须有来源。",
+                "source_urls": [],
+            }
+            for index in range(1, 6)
+        ]
+        return type("Result", (), {"response_id": "empty-source-hotspots", "text": json.dumps(payload, ensure_ascii=False)})()
+
+
 def test_refresh_status_counts_down_to_11_before_daily_refresh(tmp_path: Path):
     pipeline = DailyPipeline(JsonStore(tmp_path))
 
@@ -387,6 +418,25 @@ def test_current_topic_pack_backfills_long_article_topic_ids_from_sources(tmp_pa
 
     assert current.long_articles[0].topic_id == "topic-agent-lab"
     assert current.long_articles[1].topic_id == "topic-long-context-rag"
+
+
+def test_current_topic_pack_backfills_missing_narrative_recommendations(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    llm = TopicPackLLM()
+    pipeline = DailyPipeline(store, llm_provider=llm)
+    pipeline.run_daily("2026-06-20")
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="legacy missing narratives")
+    legacy_items = [
+        item.model_copy(update={"score_detail": {key: value for key, value in item.score_detail.items() if key != "recommended_narrative"}})
+        for item in pack.long_articles
+    ]
+    store.add_topic_pack_version(pack.model_copy(update={"id": "topic-pack-2026-06-20-v99", "version": 99, "long_articles": legacy_items}))
+
+    current = pipeline.ensure_topic_pack("2026-06-20")
+
+    narratives = [item.score_detail.get("recommended_narrative") for item in current.long_articles]
+    assert all(isinstance(item, dict) for item in narratives)
+    assert {item["type"] for item in narratives} != {"trend_slice"}
 
 
 def test_current_topic_pack_creates_selectable_topics_for_llm_only_long_articles(tmp_path: Path):
@@ -496,19 +546,59 @@ def test_topic_pack_all_refresh_fails_when_long_articles_missing(tmp_path: Path)
         pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial schema")
 
 
-def test_topic_pack_all_refresh_returns_partial_pack_when_secondary_module_missing(tmp_path: Path):
+def test_topic_pack_all_refresh_backfills_hotspots_when_secondary_module_missing(tmp_path: Path):
     store = JsonStore(tmp_path)
     pipeline = DailyPipeline(store, llm_provider=MissingHotspotsLLM())
 
     pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="partial hotspots")
     current = pipeline.ensure_topic_pack("2026-06-20")
 
-    assert pack.status == "partial"
+    assert pack.status == "ready"
     assert current.id == pack.id
     assert len(pack.long_articles) == 5
-    assert pack.ai_hotspots == []
+    assert len(pack.ai_hotspots) >= 5
+    assert all(item.source_urls for item in pack.ai_hotspots)
+    assert not any(any("arxiv.org" in url or "doi.org" in url for url in item.source_urls) for item in pack.ai_hotspots)
     assert len(pack.arxiv_papers) == 5
     assert all(item.score_detail for item in pack.long_articles)
+
+
+def test_topic_pack_filters_paper_sources_out_of_ai_hotspots(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=TopicPackLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="no paper hotspots")
+
+    assert len(pack.ai_hotspots) == 5
+    assert not any(item.arxiv_id for item in pack.ai_hotspots)
+    assert not any(any("arxiv.org" in url or "doi.org" in url for url in item.source_urls) for item in pack.ai_hotspots)
+
+
+def test_topic_pack_backfills_ai_hotspots_from_non_paper_signals_when_llm_returns_only_papers(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=PaperOnlyHotspotsLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="reject paper hotspots")
+
+    assert pack.status == "ready"
+    assert len(pack.ai_hotspots) >= 5
+    assert all(item.source_urls for item in pack.ai_hotspots)
+    assert not any(item.arxiv_id for item in pack.ai_hotspots)
+    assert not any(any("arxiv.org" in url or "doi.org" in url for url in item.source_urls) for item in pack.ai_hotspots)
+    assert len(pack.arxiv_papers) == 5
+
+
+def test_topic_pack_backfills_ai_hotspots_from_non_paper_signals_when_llm_omits_sources(tmp_path: Path):
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=EmptySourceHotspotsLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="fallback to signals")
+
+    assert pack.status == "ready"
+    assert len(pack.ai_hotspots) >= 5
+    assert all(item.source_urls for item in pack.ai_hotspots)
+    assert not any(item.arxiv_id for item in pack.ai_hotspots)
+    assert not any(any("arxiv.org" in url or "doi.org" in url for url in item.source_urls) for item in pack.ai_hotspots)
 
 
 def test_topic_pack_scores_penalize_cross_day_history(tmp_path: Path, monkeypatch):
@@ -604,6 +694,109 @@ def test_topic_pack_refresh_writes_long_article_score_report(tmp_path: Path):
     assert isinstance(first_paper["total_score"], (int, float))
     if len(payload["papers"]) == 5:
         assert payload["papers"][4]["selected"] is True
+
+
+def test_topic_pack_long_articles_include_narrative_recommendations(tmp_path: Path, monkeypatch):
+    def high_score_seed(run_date: str) -> list[Paper]:
+        papers = _scoreable_test_papers(run_date)
+        return [
+            *papers,
+            papers[0].model_copy(
+                update={
+                    "id": "paper-narrative-benchmark",
+                    "arxiv_id": "2606.99999",
+                    "title": "OpenAI Agent Benchmark with Large-Scale Evaluation",
+                    "authors": ["OpenAI Research"],
+                    "abstract": "A benchmark and evaluation suite for agent failures.",
+                    "pdf_url": "https://arxiv.org/pdf/2606.99999",
+                    "categories": ["cs.AI"],
+                    "method_summary": "evaluation benchmark",
+                    "experiment_summary": "Benchmark comparison and ablation experiments.",
+                }
+            ),
+        ]
+
+    monkeypatch.setattr("ai_radar.pipeline.seed_papers", high_score_seed)
+    store = JsonStore(tmp_path)
+    pipeline = DailyPipeline(store, llm_provider=TopicPackLLM())
+
+    pack = pipeline.refresh_topic_pack("2026-06-20", module="all", reason="test narratives")
+
+    item = next(item for item in pack.long_articles if item.arxiv_id == "2606.99999")
+    recommendation = item.score_detail.get("recommended_narrative")
+    assert isinstance(recommendation, dict)
+    assert recommendation["type"] == "evaluation_review"
+    assert recommendation["label"] == "评测复盘型"
+    assert "评测" in recommendation["reason"] or "benchmark" in recommendation["reason"].lower()
+    assert isinstance(recommendation["alternatives"], list)
+
+
+def test_narrative_recommendation_rules_cover_main_types():
+    from ai_radar.narrative import recommend_narrative
+
+    assert (
+        recommend_narrative(
+            title="SWE-Bench Evaluation for Coding Agents",
+            abstract="A benchmark and evaluation suite for agent failures.",
+            categories=["cs.SE"],
+            method_summary="evaluation benchmark",
+        )["type"]
+        == "evaluation_review"
+    )
+    assert (
+        recommend_narrative(
+            title="RAG versus Long-Context LLMs",
+            abstract="We compare retrieval augmented generation vs long-context language models.",
+            categories=["cs.CL"],
+            method_summary="comparison",
+        )["type"]
+        == "controversy_judgement"
+    )
+    assert (
+        recommend_narrative(
+            title="A New Inference Architecture",
+            abstract="A framework for optimized inference with ablation studies.",
+            categories=["cs.LG"],
+            method_summary="system architecture",
+        )["type"]
+        == "mechanism_explainer"
+    )
+    assert (
+        recommend_narrative(
+            title="语言防火墙：多智能体路由中的几何防御",
+            abstract="提出一种路由架构，通过动态查询、行为算子、语义空间投影和几何边界防御恶意智能体。",
+            categories=["cs.AI"],
+            method_summary="routing architecture with geometric defense",
+        )["type"]
+        == "mechanism_explainer"
+    )
+    assert (
+        recommend_narrative(
+            title="Coding Agent Workflow Deployment",
+            abstract="Tool use and workflow design for AI coding agents.",
+            categories=["cs.SE"],
+            method_summary="agent workflow",
+        )["type"]
+        == "application_translation"
+    )
+    assert (
+        recommend_narrative(
+            title="TraceLab：编码智能体工作负载特征分析及其对 LLM 推理服务的影响",
+            abstract="分析真实编码智能体会话、工具调用、长上下文和推理服务优化方向。",
+            categories=["cs.SE"],
+            method_summary="coding agent workload and serving optimization",
+        )["type"]
+        == "application_translation"
+    )
+    assert (
+        recommend_narrative(
+            title="A General AI Paper",
+            abstract="This paper studies language models.",
+            categories=["cs.AI"],
+            method_summary="analysis",
+        )["type"]
+        == "trend_slice"
+    )
 
 
 def test_initial_ai_hotspots_refresh_does_not_require_scoreable_long_articles(tmp_path: Path, monkeypatch):

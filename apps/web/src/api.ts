@@ -9,6 +9,7 @@ export type TopicPackScoreDetail = {
   method_substance?: ScoreItem;
   experiment_strength?: ScoreItem;
   selection_reasons?: string[];
+  recommended_narrative?: RecommendedNarrative;
   [key: string]: unknown;
 };
 
@@ -75,6 +76,19 @@ export type Topic = {
 };
 
 export type TopicPackModule = "long_articles" | "ai_hotspots" | "arxiv_papers" | "all";
+export type NarrativeType =
+  | "evaluation_review"
+  | "mechanism_explainer"
+  | "controversy_judgement"
+  | "trend_slice"
+  | "application_translation";
+
+export type RecommendedNarrative = {
+  type: NarrativeType;
+  label: string;
+  reason: string;
+  alternatives: NarrativeType[];
+};
 
 export type TopicPackItem = {
   id: string;
@@ -112,10 +126,11 @@ export type TopicPackVersion = {
 export type DraftAsset = {
   id: string;
   draft_id: string;
-  kind: "cover" | "mechanism" | "quote" | "source_file";
+  kind: "cover" | "mechanism" | "inline_illustration" | "quote" | "source_file";
   prompt: string;
   revised_prompt: string | null;
   path: string;
+  insert_after: string;
   width: number;
   height: number;
   provider: string;
@@ -320,6 +335,11 @@ export async function fetchDraftDetail(draftId: string): Promise<DraftDetail> {
   return getJson<DraftDetail>(`/api/drafts/${draftId}`);
 }
 
+export async function fetchDrafts(date?: string): Promise<Draft[]> {
+  const suffix = date ? `?date=${encodeURIComponent(date)}` : "";
+  return getJson<Draft[]>(`/api/drafts${suffix}`);
+}
+
 export async function generateTopicDraft(topicId: string, date?: string): Promise<Draft> {
   const suffix = date ? `?date=${encodeURIComponent(date)}` : "";
   const response = await fetch(`/api/topics/${topicId}/draft${suffix}`, {
@@ -331,11 +351,11 @@ export async function generateTopicDraft(topicId: string, date?: string): Promis
   return response.json() as Promise<Draft>;
 }
 
-export async function refreshDraftModule(draftId: string, module: RefreshModule): Promise<Draft> {
+export async function refreshDraftModule(draftId: string, module: RefreshModule, narrativeType?: NarrativeType): Promise<Draft> {
   const response = await fetch(`/api/drafts/${draftId}/refresh-module`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ module, reason: "manual module refresh" })
+    body: JSON.stringify({ module, reason: "manual module refresh", narrative_type: narrativeType })
   });
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response, "Refresh module failed"));

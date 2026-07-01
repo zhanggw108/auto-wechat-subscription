@@ -20,6 +20,7 @@ import {
 
 import {
   DraftDetail,
+  NarrativeType,
   ProvidersSettings,
   ProvidersSettingsUpdate,
   RadarToday,
@@ -31,6 +32,7 @@ import {
   TopicPackVersion,
   fetchCurrentTopicPack,
   fetchDraftDetail,
+  fetchDrafts,
   fetchProviderSettings,
   fetchRadar,
   fetchRefreshStatus,
@@ -84,7 +86,7 @@ const rerunActions = [
   { label: "重跑整篇", stage: "article", icon: Article },
   { label: "重跑风格", stage: "style", icon: Repeat },
   { label: "重跑封面素材", stage: "cover", icon: Image },
-  { label: "重跑机制图素材", stage: "mechanism", icon: Image },
+  { label: "重跑正文配图", stage: "visuals", icon: Image },
   { label: "刷新 HTML", stage: "wechat", icon: FileHtml }
 ];
 
@@ -107,6 +109,14 @@ const topicPackModuleLabels: Record<TopicPackModule, string> = {
   all: "全部选题"
 };
 
+const narrativeOptions: Array<{ type: NarrativeType; label: string }> = [
+  { type: "evaluation_review", label: "评测复盘型" },
+  { type: "mechanism_explainer", label: "机制拆解型" },
+  { type: "controversy_judgement", label: "争议判断型" },
+  { type: "trend_slice", label: "趋势切片型" },
+  { type: "application_translation", label: "应用转译型" }
+];
+
 const rerunFeedbackLabels: Record<string, string> = {
   title: "标题",
   outline: "导语",
@@ -114,8 +124,39 @@ const rerunFeedbackLabels: Record<string, string> = {
   style: "风格",
   cover: "封面",
   mechanism: "机制图",
+  visuals: "正文配图",
   wechat: "HTML"
 };
+
+const assetKindLabels: Record<string, string> = {
+  cover: "封面",
+  mechanism: "机制图",
+  inline_illustration: "正文插图",
+  quote: "摘录图",
+  source_file: "论文原图"
+};
+
+const lastDraftStorageKey = "ai-radar:last-draft-id";
+
+function getLastDraftId(): string {
+  try {
+    return window.localStorage.getItem(lastDraftStorageKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberDraftId(draftId: string) {
+  try {
+    window.localStorage.setItem(lastDraftStorageKey, draftId);
+  } catch {
+    // Ignore storage failures; the server copy is still the source of truth.
+  }
+}
+
+function latestDraftId(drafts: { id: string; updated_at: string }[]): string {
+  return [...drafts].sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0]?.id ?? "";
+}
 
 const emptyProviderSettings: ProvidersSettings = {
   llm: {
@@ -186,6 +227,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
   const [editorStatus, setEditorStatus] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
   const [activeModuleId, setActiveModuleId] = useState("article-module-main");
+  const [selectedNarrativeType, setSelectedNarrativeType] = useState<NarrativeType>("trend_slice");
 
   useEffect(() => {
     if (initialRadar) {
@@ -204,12 +246,24 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
         const nextRadar = await fetchRadar();
         const nextTopics = await fetchTopics();
         const nextTopicPack = await fetchCurrentTopicPack(nextRadar.date);
-        const nextDetail = await fetchDraftDetail(nextRadar.draft.id);
+        const nextDrafts = await fetchDrafts(nextRadar.date);
+        const rememberedDraftId = getLastDraftId();
+        const preferredDraftId = latestDraftId(nextDrafts) || rememberedDraftId || nextRadar.draft.id;
+        let nextDetail: DraftDetail;
+        try {
+          nextDetail = await fetchDraftDetail(preferredDraftId);
+        } catch (error) {
+          if (preferredDraftId === nextRadar.draft.id) {
+            throw error;
+          }
+          nextDetail = await fetchDraftDetail(nextRadar.draft.id);
+        }
         if (!cancelled) {
           setRadar(nextRadar);
           setTopics(nextTopics);
           setTopicPack(nextTopicPack);
           setDraftDetail(nextDetail);
+          rememberDraftId(nextDetail.draft.id);
           setStatus("ready");
         }
       } catch (error) {
@@ -327,6 +381,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       const nextDraft = await rerunDraft(draftDetail.draft.id, stage);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setEditorStatus(`已重跑${rerunFeedbackLabels[stage] ?? stage} v${nextDetail.draft.version}`);
     } catch (error) {
@@ -341,17 +396,23 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     document.getElementById("workshop")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function handleSelectTopicDraft(topicId: string) {
+  async function handleSelectTopicDraft(item: TopicPackItem) {
     if (!radar) {
+      return;
+    }
+    const topicId = item.topic_id;
+    if (!topicId) {
       return;
     }
     scrollToWorkshop();
     setGeneratingTopicId(topicId);
+    setSelectedNarrativeType(recommendedNarrative(item)?.type ?? "trend_slice");
     setEditorStatus("正在选择选题...");
     try {
       const nextDraft = await generateTopicDraft(topicId, radar.date);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setActiveModuleId("article-module-main");
       setEditorStatus(`已选择选题 v${nextDetail.draft.version}，点击“生成长文”继续`);
@@ -377,6 +438,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       setTopics(nextTopics);
       setTopicPack(nextTopicPack);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setRefreshMessage("已完成自动刷新");
     } catch (error) {
@@ -407,6 +469,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
       setTopics(nextTopics);
       setTopicPack(nextTopicPack);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setActiveModuleId("article-module-main");
       setRefreshMessage(`已刷新全部选题 v${nextTopicPack.version}`);
@@ -449,9 +512,10 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     setRefreshingModule(module);
     setEditorStatus(`正在生成${moduleFeedbackLabels[module]}...`);
     try {
-      const nextDraft = await refreshDraftModule(draftDetail.draft.id, module);
+      const nextDraft = await refreshDraftModule(draftDetail.draft.id, module, module === "main" ? selectedNarrativeType : undefined);
       const nextDetail = await fetchDraftDetail(nextDraft.id);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setEditorStatus(`已生成${moduleFeedbackLabels[module]} v${nextDetail.draft.version}`);
     } catch (error) {
@@ -470,6 +534,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
     try {
       const nextDetail = await saveDraftContent(draftDetail.draft.id, editorMarkdown);
       setDraftDetail(nextDetail);
+      rememberDraftId(nextDetail.draft.id);
       setEditorMarkdown(nextDetail.markdown);
       setEditorStatus(`已保存 v${nextDetail.draft.version}`);
     } catch (error) {
@@ -583,7 +648,11 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
             <Clock size={18} />
             <strong>下次刷新 {refreshStatus?.refresh_time ?? "11:00"}</strong>
           </div>
-          <span>{refreshStatus?.today_refreshed ? "今日已刷新" : "今日待刷新"}</span>
+          <span>
+            {refreshStatus?.today_refreshed
+              ? `今日已刷新，下次自动刷新为明天 ${refreshStatus.refresh_time}（北京时间）`
+              : "今日待刷新"}
+          </span>
           <p>还有 {formatDuration(countdownSeconds)}</p>
           <button disabled={manualRefreshing || dueRefreshing} onClick={handleManualRefreshToday} type="button">
             <Repeat size={16} /> {manualRefreshing ? "刷新中" : "刷新全部选题"}
@@ -663,9 +732,7 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
                 onRefresh={() => handleRefreshTopicModule("long_articles")}
                 refreshLabel="刷新论文解读候选"
                 onGenerate={(item) => {
-                  if (item.topic_id) {
-                    void handleSelectTopicDraft(item.topic_id);
-                  }
+                  void handleSelectTopicDraft(item);
                 }}
                 generatingTopicId={generatingTopicId}
               />
@@ -750,6 +817,20 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
                 ))}
               </div>
               <div className="module-refresh-row" aria-label="模块刷新">
+                <label className="narrative-picker">
+                  <span>长文写法</span>
+                  <select
+                    aria-label="长文写法"
+                    onChange={(event) => setSelectedNarrativeType(event.target.value as NarrativeType)}
+                    value={selectedNarrativeType}
+                  >
+                    {narrativeOptions.map((option) => (
+                      <option key={option.type} value={option.type}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {moduleRefreshActions.map((action) => (
                   <button
                     disabled={refreshingModule === action.module}
@@ -829,16 +910,17 @@ function App({ initialRadar, initialTopics, initialDraftDetail, initialProviderS
                     {draftDetail.draft.assets.map((asset) => (
                       <article className="asset-row" key={asset.id}>
                         <div>
-                          <strong>{asset.kind}</strong>
+                          <strong>{assetKindLabels[asset.kind] || asset.kind}</strong>
                           <span>{asset.provider}</span>
                         </div>
                         <code>{asset.path}</code>
+                        {asset.insert_after ? <p>建议插入位置：{asset.insert_after}</p> : null}
                         <p>{asset.revised_prompt || asset.prompt}</p>
                       </article>
                     ))}
                   </div>
                 ) : (
-                  <p>尚未生成封面或机制图素材。</p>
+                  <p>尚未生成封面、正文配图或论文原图素材。</p>
                 )}
               </section>
             </aside>
@@ -1002,6 +1084,10 @@ function topicPackScoreSummary(item: TopicPackItem): { line: string; reasons: st
   };
 }
 
+function recommendedNarrative(item: TopicPackItem) {
+  return item.score_detail?.recommended_narrative ?? null;
+}
+
 function TopicPackModulePanel({
   title,
   description,
@@ -1036,6 +1122,7 @@ function TopicPackModulePanel({
         {items.length === 0 ? <p className="empty-state">这个模块还没生成成功，可单独刷新。</p> : null}
         {items.map((item) => {
           const scoreSummary = item.module === "long_articles" ? topicPackScoreSummary(item) : null;
+          const narrative = item.module === "long_articles" ? recommendedNarrative(item) : null;
           return (
             <article className="topic-pack-item" key={item.id}>
               <span>{String(item.rank).padStart(2, "0")}</span>
@@ -1047,6 +1134,12 @@ function TopicPackModulePanel({
                   <div className="topic-pack-item__score">
                     <strong>{scoreSummary.line}</strong>
                     {scoreSummary.reasons ? <span>{scoreSummary.reasons}</span> : null}
+                  </div>
+                ) : null}
+                {narrative ? (
+                  <div className="topic-pack-item__narrative">
+                    <strong>推荐写法：{narrative.label}</strong>
+                    <span>{narrative.reason}</span>
                   </div>
                 ) : null}
                 {item.source_urls.length ? (

@@ -66,7 +66,7 @@ class Image2Provider:
             max_retries=int(settings.get("max_retries") or os.getenv("IMAGE2_MAX_RETRIES", "1")),
         )
 
-    def generate(self, prompt: str, output_path: Path) -> ImageResult:
+    def generate(self, prompt: str, output_path: Path, size: str | None = None) -> ImageResult:
         last_error: httpx.HTTPError | None = None
         for attempt in range(self.max_retries + 1):
             try:
@@ -79,7 +79,7 @@ class Image2Provider:
                         "tools": [
                             {
                                 "type": "image_generation",
-                                "size": self.size,
+                                "size": size or self.size,
                                 "quality": self.quality,
                                 "format": self.output_format,
                             }

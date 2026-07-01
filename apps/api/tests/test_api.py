@@ -124,9 +124,12 @@ def test_can_generate_long_article_from_user_selected_topic(tmp_path: Path):
     assert detail.status_code == 200
     assert "长上下文与 RAG 的论文争论，核心其实是成本和路由" in detail.json()["markdown"]
 
+    drafts = client.get("/api/drafts?date=2026-06-20").json()
+    assert draft["id"] in {item["id"] for item in drafts}
+
 
 def test_refresh_module_api_reports_runtime_errors_as_bad_gateway(tmp_path: Path, monkeypatch):
-    def fail_refresh_module(self, draft_id: str, module: str, reason: str = ""):
+    def fail_refresh_module(self, draft_id: str, module: str, reason: str = "", narrative_type=None):
         raise RuntimeError("Image2 generation failed: image relay unavailable")
 
     monkeypatch.setattr("ai_radar.pipeline.DailyPipeline.refresh_module", fail_refresh_module)

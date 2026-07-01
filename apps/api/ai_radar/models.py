@@ -15,6 +15,13 @@ DraftStatus = Literal["generating", "review", "ready", "published", "rejected"]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "canceled"]
 RefreshModule = Literal["main", "hotspots", "arxiv"]
 TopicPackModule = Literal["long_articles", "ai_hotspots", "arxiv_papers", "all"]
+NarrativeType = Literal[
+    "evaluation_review",
+    "mechanism_explainer",
+    "controversy_judgement",
+    "trend_slice",
+    "application_translation",
+]
 
 
 class ScoreItem(BaseModel):
@@ -132,10 +139,11 @@ class EvidenceItem(BaseModel):
 class DraftAsset(BaseModel):
     id: str
     draft_id: str
-    kind: Literal["cover", "mechanism", "quote", "source_file"]
+    kind: Literal["cover", "mechanism", "inline_illustration", "quote", "source_file"]
     prompt: str
     revised_prompt: Optional[str] = None
     path: str
+    insert_after: str = ""
     width: int = 1536
     height: int = 1024
     provider: str = "image2"
@@ -209,13 +217,14 @@ class DraftDetail(BaseModel):
 
 
 class RegenerateRequest(BaseModel):
-    stage: Literal["title", "outline", "article", "style", "review", "cover", "mechanism", "wechat"]
+    stage: Literal["title", "outline", "article", "style", "review", "cover", "mechanism", "visuals", "wechat"]
     reason: str = ""
 
 
 class RefreshModuleRequest(BaseModel):
     module: RefreshModule
     reason: str = "manual refresh"
+    narrative_type: Optional[NarrativeType] = None
 
 
 class TopicPackRefreshRequest(BaseModel):

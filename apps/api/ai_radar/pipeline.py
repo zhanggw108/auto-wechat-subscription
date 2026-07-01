@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 from difflib import SequenceMatcher
 from datetime import date as date_type, datetime, time, timedelta
 from pathlib import Path
@@ -20,6 +22,7 @@ from .models import (
     DraftAsset,
     EvidenceItem,
     Job,
+    NarrativeType,
     Paper,
     RadarToday,
     RefreshModule,
@@ -34,6 +37,7 @@ from .models import (
 )
 from .image_provider import Image2Provider
 from .llm_provider import ResponsesLLMProvider
+from .narrative import forbidden_main_article_reason, narrative_strategy, recommend_narrative
 from .sample_data import seed_papers, seed_signals, seed_sources
 from .scoring import PaperScore, build_score_report, score_papers
 from .storage import JsonStore, slugify
@@ -190,8 +194,28 @@ class DailyPipeline:
     def _with_topic_pack_topic_ids(self, pack: TopicPackVersion) -> TopicPackVersion:
         topics = self.store.list_topics()
         papers = {paper.id: paper for paper in self.store.list_papers()}
-        mapped = [self._with_topic_id(item, topics, papers) for item in pack.long_articles]
+        mapped = [self._with_topic_pack_metadata(item, topics, papers) for item in pack.long_articles]
         return pack.model_copy(update={"long_articles": mapped})
+
+    def _with_topic_pack_metadata(self, item: TopicPackItem, topics: List[Topic], papers: Dict[str, Paper]) -> TopicPackItem:
+        item = self._with_topic_id(item, topics, papers)
+        if item.score_detail.get("recommended_narrative"):
+            return item
+        paper = next(
+            (
+                paper
+                for paper in papers.values()
+                if item.arxiv_id and normalize_arxiv_version(item.arxiv_id) == normalize_arxiv_version(paper.arxiv_id)
+            ),
+            None,
+        )
+        recommendation = recommend_narrative(
+            title=paper.title if paper else item.title,
+            abstract=paper.abstract if paper else item.summary,
+            categories=paper.categories if paper else [],
+            method_summary=paper.method_summary if paper else item.angle,
+        )
+        return item.model_copy(update={"score_detail": {**item.score_detail, "recommended_narrative": recommendation}})
 
     def _with_topic_id(self, item: TopicPackItem, topics: List[Topic], papers: Dict[str, Paper]) -> TopicPackItem:
         if item.topic_id:
@@ -379,15 +403,13 @@ class DailyPipeline:
         if generation_module not in {"ai_hotspots", "all"}:
             ai_hotspots = previous.ai_hotspots if previous else []
         else:
-            ai_hotspots = self._items_from_payload_or_previous(
-                run.date,
-                next_version,
-                "ai_hotspots",
-                generated.get("ai_hotspots"),
-                response_id,
-                previous.ai_hotspots if previous else [],
-                missing_modules,
-            )
+            try:
+                ai_hotspots = self._items_from_payload(run.date, next_version, "ai_hotspots", generated.get("ai_hotspots"), response_id)
+            except RuntimeError:
+                ai_hotspots = self._ai_hotspot_items_from_signals(run.date, next_version, run.signals, response_id)
+                if not ai_hotspots:
+                    missing_modules.append("ai_hotspots")
+                    ai_hotspots = previous.ai_hotspots if previous else []
         if generation_module not in {"arxiv_papers", "all"}:
             arxiv_papers = previous.arxiv_papers if previous else []
         else:
@@ -583,7 +605,7 @@ class DailyPipeline:
         self.store.upsert_many("drafts", [draft])
         return draft
 
-    def refresh_module(self, draft_id: str, module: RefreshModule, reason: str = "") -> Draft:
+    def refresh_module(self, draft_id: str, module: RefreshModule, reason: str = "", narrative_type: NarrativeType | None = None) -> Draft:
         draft = self.get_draft(draft_id)
         topic = self.get_topic(draft.topic_id)
         signals = self.store.list_signals()
@@ -592,11 +614,12 @@ class DailyPipeline:
         if not evidence_items:
             evidence_items = self._build_evidence(topic, signals, papers)
             self.store.upsert_many("evidence_items", evidence_items)
-        self.store.archive_draft_files(draft, f"v{draft.version}-{module}-{now_iso()}")
 
         paper = next((item for item in papers if item.id == topic.paper_id), None)
-        ai_hotspots = sorted([signal for signal in signals if signal.kind != "paper"], key=lambda item: item.heat, reverse=True)[:5]
-        arxiv_hot_papers = sorted(papers, key=lambda item: item.replication_value, reverse=True)[:5]
+        ai_hotspots = self._article_hotspots(topic, signals)
+        draft_parts = Path(draft.markdown_path).parts
+        draft_date = draft_parts[1] if len(draft_parts) > 1 and draft_parts[0] == "drafts" else None
+        arxiv_hot_papers = self._article_arxiv_papers(topic, papers, draft_date)
         include_long_article = module == "main" or bool(draft.assets)
         existing_markdown = self.store.read_text(draft.markdown_path)
         generated_markdown = build_article_markdown(
@@ -608,7 +631,7 @@ class DailyPipeline:
             include_long_article=include_long_article,
         )
         generation_error = ""
-        if include_long_article and self.llm_provider and module == "main":
+        if module == "main":
             generated_markdown = self._generate_article_markdown(
                 topic,
                 paper,
@@ -616,6 +639,7 @@ class DailyPipeline:
                 ai_hotspots,
                 arxiv_hot_papers,
                 include_long_article=True,
+                narrative_type=narrative_type,
             )
             generation_error = self._last_generation_error
         elif self.llm_provider and module in {"hotspots", "arxiv"}:
@@ -627,21 +651,14 @@ class DailyPipeline:
                 arxiv_hot_papers,
                 fallback=generated_markdown,
             )
-            generation_error = self._last_generation_error or previous_generation_error
+            generation_error = self._last_generation_error or clear_resolved_secondary_module_error(previous_generation_error, module)
         markdown = replace_article_module(existing_markdown, generated_markdown, module)
         markdown = ensure_module_refresh_changes(existing_markdown, markdown, module, topic, reason)
+        self.store.archive_draft_files(draft, f"v{draft.version}-{module}-{now_iso()}")
         self.store.write_text(draft.markdown_path, markdown)
         self.store.write_text(draft.html_path, markdown_to_wechat_html(markdown))
         if module == "main":
-            visual_errors: List[str] = []
-            for stage, default_reason in (
-                ("cover", "generate deep paper analysis cover"),
-                ("mechanism", "generate deep paper analysis mechanism"),
-            ):
-                try:
-                    self._regenerate_visual_asset(draft, topic, stage, reason or default_reason)
-                except RuntimeError as error:
-                    visual_errors.append(f"{stage}: {error}")
+            visual_errors = self._regenerate_visual_assets(draft, topic, reason or "generate deep paper analysis visuals")
             if visual_errors:
                 generation_error = join_generation_errors(generation_error, *visual_errors)
         draft.generation_error = generation_error
@@ -652,9 +669,15 @@ class DailyPipeline:
         return draft
 
     def list_drafts(self, date: str | None = None) -> List[Draft]:
-        run = self.ensure_daily_run(date)
-        draft_ids = {run.draft.id}
-        return [draft for draft in self.store.list_drafts() if draft.id in draft_ids or not date]
+        if not date:
+            return self.store.list_drafts()
+        self.ensure_daily_run(date)
+        prefix = f"drafts/{date}/"
+        return sorted(
+            [draft for draft in self.store.list_drafts() if draft.markdown_path.startswith(prefix)],
+            key=lambda draft: draft.updated_at,
+            reverse=True,
+        )
 
     def get_draft(self, draft_id: str) -> Draft:
         for draft in self.store.list_drafts():
@@ -704,6 +727,7 @@ class DailyPipeline:
             "long_articles 的 title、summary、angle 必须以中文为主，不得直接照抄英文论文标题；英文论文名只能作为补充信息。"
             "不得把 GitHub 项目、产品新闻、公司动态或泛话题单独放进 long_articles。"
             "ai_hotspots 承接 AI 热点、官方博客、产品动态、GitHub 开源项目和社区讨论；GitHub 主要进入 ai_hotspots。"
+            "ai_hotspots 不得包含 arXiv/PDF/DOI 论文来源，论文来源必须进入 arxiv_papers。"
             "arxiv_papers 是 5-10 篇值得关注的论文速报，按学术价值排序，不按传播热度单独决定。"
             "每条包含 title、summary、angle、source_urls，可选 arxiv_id。"
             "手动刷新时必须生成新角度，并避开历史里已经出现的标题、URL、arXiv ID 和同质角度。"
@@ -761,6 +785,8 @@ class DailyPipeline:
             source_urls = topic_pack_source_urls(raw)
             arxiv_id = raw.get("arxiv_id") or next((extract_arxiv_id(url) for url in source_urls if extract_arxiv_id(url)), None)
             has_paper_source = bool(arxiv_id) or any(is_paper_url(url) for url in source_urls)
+            if module == "ai_hotspots" and (has_paper_source or not source_urls):
+                continue
             if module in {"long_articles", "arxiv_papers"} and not has_paper_source:
                 continue
             if module == "long_articles" and any(is_github_url(url) for url in source_urls) and not has_paper_source:
@@ -849,6 +875,24 @@ class DailyPipeline:
             score_detail=score_detail or {},
         )
 
+    def _ai_hotspot_items_from_signals(self, run_date: str, version: int, signals: List[Signal], llm_response_id: str) -> List[TopicPackItem]:
+        items = [
+            self._make_topic_pack_item(
+                run_date=run_date,
+                version=version,
+                module="ai_hotspots",
+                rank=index,
+                title=signal.title,
+                summary=signal.summary,
+                angle=signal.summary,
+                source_urls=[signal.url],
+                arxiv_id=None,
+                llm_response_id=llm_response_id,
+            )
+            for index, signal in enumerate(sorted([signal for signal in signals if signal.kind != "paper" and not is_paper_url(signal.url)], key=lambda item: item.heat, reverse=True)[:10], start=1)
+        ]
+        return items if len(items) >= 5 else []
+
     def _rank_items(self, items: List[TopicPackItem], module: Literal["long_articles", "ai_hotspots", "arxiv_papers"]) -> List[TopicPackItem]:
         return [item.model_copy(update={"rank": index, "module": module}) for index, item in enumerate(items, start=1)]
 
@@ -900,42 +944,59 @@ class DailyPipeline:
     def regenerate_draft(self, draft_id: str, stage: str, reason: str = "") -> Draft:
         draft = self.get_draft(draft_id)
         topic = self.get_topic(draft.topic_id)
-        self.store.archive_draft_files(draft, f"v{draft.version}-{stage}-{now_iso()}")
-        draft.version += 1
-        draft.last_rerun_stage = stage
-        draft.updated_at = now_iso()
+        text_updates: Dict[str, str] = {}
+        next_title: str | None = None
+        next_generation_error: str | None = None
         if stage == "wechat":
             markdown = self.store.read_text(draft.markdown_path)
-            self.store.write_text(draft.html_path, markdown_to_wechat_html(markdown))
-        elif stage in {"cover", "mechanism"}:
-            self._regenerate_visual_asset(draft, topic, stage, reason)
+            text_updates[draft.html_path] = markdown_to_wechat_html(markdown)
+        elif stage == "cover":
+            self._regenerate_visual_asset(draft, topic, visual_asset_specs(topic, next((item for item in self.store.list_papers() if item.id == topic.paper_id), None))[0], reason)
+        elif stage == "mechanism":
+            visual_errors = self._regenerate_visual_assets(draft, topic, reason or "regenerate mechanism visual", include_cover=False, include_inline=False)
+            next_generation_error = join_generation_errors(draft.generation_error, *visual_errors) if visual_errors else draft.generation_error
+        elif stage == "visuals":
+            visual_errors = self._regenerate_visual_assets(draft, topic, reason or "regenerate article visuals", include_cover=False, include_mechanism=False)
+            next_generation_error = join_generation_errors(*visual_errors)
         elif stage == "review":
-            checklist = build_review_checklist(reason=reason, draft=draft)
-            self.store.write_text(draft.checklist_path, checklist)
+            checklist = build_review_checklist(reason=reason, draft=draft.model_copy(update={"last_rerun_stage": stage}))
+            text_updates[draft.checklist_path] = checklist
         elif stage == "article":
-            markdown = self._regenerate_full_article(topic)
+            base_markdown = self._regenerate_full_article(topic, include_long_article=False)
+            main_markdown = self._regenerate_full_article(topic, include_long_article=True)
+            markdown = replace_article_module(base_markdown, main_markdown, "main")
             markdown = add_article_rerun_note(markdown, topic, reason)
-            self.store.write_text(draft.markdown_path, markdown)
-            self.store.write_text(draft.html_path, markdown_to_wechat_html(markdown))
+            text_updates[draft.markdown_path] = markdown
+            text_updates[draft.html_path] = markdown_to_wechat_html(markdown)
         elif stage in {"title", "outline", "style"}:
             markdown = self.store.read_text(draft.markdown_path)
             if stage == "title":
-                title = build_rerun_title(topic, reason, version=draft.version)
-                draft.title = title
+                title = build_rerun_title(topic, reason, version=draft.version + 1)
+                next_title = title
                 markdown = replace_first_heading(markdown, f"今日 AI 论文与热点文章包：{title}")
                 markdown = replace_visible_article_title(markdown, title)
             elif stage == "outline":
                 markdown = upsert_intro_section(markdown, topic, reason)
             else:
                 markdown = self._rewrite_style(markdown, topic, reason)
-            self.store.write_text(draft.markdown_path, markdown)
-            self.store.write_text(draft.html_path, markdown_to_wechat_html(markdown))
+            text_updates[draft.markdown_path] = markdown
+            text_updates[draft.html_path] = markdown_to_wechat_html(markdown)
         else:
             raise ValueError(f"Unsupported rerun stage: {stage}")
+        self.store.archive_draft_files(draft, f"v{draft.version}-{stage}-{now_iso()}")
+        for path, content in text_updates.items():
+            self.store.write_text(path, content)
+        draft.version += 1
+        draft.last_rerun_stage = stage
+        draft.updated_at = now_iso()
+        if next_title is not None:
+            draft.title = next_title
+        if next_generation_error is not None:
+            draft.generation_error = next_generation_error
         self.store.update_draft(draft)
         return draft
 
-    def _regenerate_full_article(self, topic: Topic) -> str:
+    def _regenerate_full_article(self, topic: Topic, include_long_article: bool = True) -> str:
         signals = self.store.list_signals()
         papers = self.store.list_papers()
         evidence_items = [item for item in self.store.list_evidence() if item.topic_id == topic.id]
@@ -943,48 +1004,186 @@ class DailyPipeline:
             evidence_items = self._build_evidence(topic, signals, papers)
             self.store.upsert_many("evidence_items", evidence_items)
         paper = next((item for item in papers if item.id == topic.paper_id), None)
-        ai_hotspots = sorted([signal for signal in signals if signal.kind != "paper"], key=lambda item: item.heat, reverse=True)[:5]
-        arxiv_hot_papers = sorted(papers, key=lambda item: item.replication_value, reverse=True)[:5]
+        ai_hotspots = self._article_hotspots(topic, signals)
+        arxiv_hot_papers = self._article_arxiv_papers(topic, papers)
         return self._generate_article_markdown(
             topic,
             paper,
             evidence_items,
             ai_hotspots,
             arxiv_hot_papers,
-            include_long_article=True,
+            include_long_article=include_long_article,
         )
 
-    def _regenerate_visual_asset(self, draft: Draft, topic: Topic, stage: str, reason: str) -> None:
+    def _article_hotspots(self, topic: Topic, signals: List[Signal], run_date: str | None = None) -> List[Signal]:
+        date = run_date or topic.created_at[:10]
+        pack = self.store.current_topic_pack(date) if date else None
+        if pack and pack.ai_hotspots:
+            packed = [
+                Signal(
+                    id=f"signal-{item.id}",
+                    source_id="topic-pack-ai-hotspots",
+                    kind="news",
+                    title=item.title,
+                    summary=item.summary,
+                    url=item.source_urls[0],
+                    published_at=f"{date}T00:00:00Z",
+                    tags=["topic-pack"],
+                    heat=max(1, 101 - item.rank),
+                    entities={},
+                )
+                for item in sorted(pack.ai_hotspots, key=lambda candidate: candidate.rank)
+                if item.source_urls and not item.arxiv_id and not any(is_paper_url(url) for url in item.source_urls)
+            ]
+            if len(packed) >= 5:
+                return packed[:10]
+        return sorted([signal for signal in signals if signal.kind != "paper"], key=lambda item: item.heat, reverse=True)[:7]
+
+    def _article_arxiv_papers(self, topic: Topic, papers: List[Paper], run_date: str | None = None) -> List[Paper]:
+        date = run_date or topic.created_at[:10]
+        pack = self.store.current_topic_pack(date) if date else None
+        if not pack or not pack.arxiv_papers:
+            return sorted(papers, key=lambda item: item.replication_value, reverse=True)[:5]
+        paper_by_arxiv = {normalize_arxiv_version(paper.arxiv_id): paper for paper in papers}
+        result: List[Paper] = []
+        for item in sorted(pack.arxiv_papers, key=lambda candidate: candidate.rank):
+            arxiv_id = item.arxiv_id or next((extract_arxiv_id(url) for url in item.source_urls if extract_arxiv_id(url)), item.id)
+            paper = paper_by_arxiv.get(normalize_arxiv_version(arxiv_id))
+            if paper:
+                result.append(paper)
+                continue
+            pdf_url = next((url for url in item.source_urls if "arxiv.org/pdf/" in url), "")
+            if not pdf_url and arxiv_id:
+                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
+            result.append(
+                Paper(
+                    id=f"paper-{slugify(arxiv_id)}",
+                    arxiv_id=arxiv_id,
+                    title=item.title,
+                    authors=[],
+                    abstract=item.summary,
+                    pdf_url=pdf_url,
+                    published_at=f"{date}T00:00:00Z",
+                    categories=[],
+                    method_summary=item.angle or item.summary,
+                    experiment_summary=item.summary,
+                    limitations="需要阅读论文后核对实验细节和局限。",
+                    replication_value=max(1, 101 - item.rank),
+                    extension_topics=[item.angle] if item.angle else [],
+                )
+            )
+        return result
+
+    def _regenerate_visual_assets(
+        self,
+        draft: Draft,
+        topic: Topic,
+        reason: str,
+        include_cover: bool = True,
+        include_mechanism: bool = True,
+        include_inline: bool = True,
+    ) -> List[str]:
         papers = self.store.list_papers()
         paper = next((item for item in papers if item.id == topic.paper_id), None)
-        prompt = build_cover_prompt(topic) if stage == "cover" else build_mechanism_prompt(topic, paper)
+        errors: List[str] = []
+        specs = visual_asset_specs(topic, paper, self.store.read_text(draft.markdown_path))
+        if not include_cover:
+            specs = [spec for spec in specs if spec["stage"] != "cover"]
+        if not include_mechanism:
+            specs = [spec for spec in specs if spec["kind"] != "mechanism"]
+        if not include_inline:
+            specs = [spec for spec in specs if spec["kind"] != "inline_illustration"]
+        elif not include_cover and not include_mechanism:
+            draft.assets = [asset for asset in draft.assets if not is_legacy_fixed_inline_asset(asset)]
+        for spec in specs:
+            try:
+                self._regenerate_visual_asset(draft, topic, spec, reason)
+            except RuntimeError as error:
+                errors.append(f"{spec['stage']}: {error}")
+        try:
+            self._add_paper_figure_assets(draft, topic, paper)
+        except RuntimeError as error:
+            errors.append(f"source_file: {error}")
+        return errors
+
+    def _regenerate_visual_asset(self, draft: Draft, topic: Topic, spec: Dict[str, object], reason: str) -> None:
+        stage = str(spec["stage"])
+        prompt = str(spec["prompt"])
         if reason:
             prompt = f"{prompt}\n\nRerun reason: {reason}"
-        rgb = (20, 140, 190) if stage == "cover" else (220, 96, 58)
+        rgb = spec["rgb"]  # type: ignore[assignment]
         relative_dir = Path(draft.markdown_path).parent
-        relative_path = relative_dir / ("cover.png" if stage == "cover" else "figures/mechanism.png")
-        result = generate_image_asset(self.store.root / relative_path, prompt, rgb=rgb, storage_root=self.store.root)
-        existing = next((asset for asset in draft.assets if asset.kind == stage), None)
+        relative_path = relative_dir / str(spec["path"])
+        result = generate_image_asset(
+            self.store.root / relative_path,
+            prompt,
+            rgb=rgb,
+            storage_root=self.store.root,
+            size=str(spec["size"]) if spec.get("size") else None,
+        )
+        existing = next((asset for asset in draft.assets if asset.id == f"asset-{draft.id}-{stage}"), None)
         if existing:
+            existing.kind = spec["kind"]  # type: ignore[assignment]
             existing.prompt = prompt
             existing.revised_prompt = result.revised_prompt
             existing.provider = result.provider
             existing.provider_request_id = result.provider_request_id or None
             existing.path = str(relative_path)
+            existing.insert_after = str(spec["insert_after"])
+            if "width" in spec and "height" in spec:
+                existing.width = int(spec["width"])
+                existing.height = int(spec["height"])
             return
+        asset_kwargs = {
+            "id": f"asset-{draft.id}-{stage}",
+            "draft_id": draft.id,
+            "kind": spec["kind"],
+            "prompt": prompt,
+            "path": str(relative_path),
+            "insert_after": str(spec["insert_after"]),
+            "revised_prompt": result.revised_prompt,
+            "provider": result.provider,
+            "provider_request_id": result.provider_request_id or None,
+            "created_at": now_iso(),
+        }
+        if "width" in spec and "height" in spec:
+            asset_kwargs.update({"width": int(spec["width"]), "height": int(spec["height"])})
         draft.assets.append(
             DraftAsset(
-                id=f"asset-{draft.id}-{stage}",
-                draft_id=draft.id,
-                kind=stage,
-                prompt=prompt,
-                path=str(relative_path),
-                revised_prompt=result.revised_prompt,
-                provider=result.provider,
-                provider_request_id=result.provider_request_id or None,
-                created_at=now_iso(),
+                **asset_kwargs,  # type: ignore[arg-type]
             )
         )
+
+    def _add_paper_figure_assets(self, draft: Draft, topic: Topic, paper: Paper | None) -> None:
+        if not paper or not paper.pdf_url:
+            return
+        relative_dir = Path(draft.markdown_path).parent
+        extracted = extract_paper_figures(
+            paper,
+            output_dir=self.store.root / relative_dir / "figures",
+            relative_dir=relative_dir / "figures",
+            http_client=self.http_client,
+        )
+        for index, item in enumerate(extracted, start=1):
+            asset_id = f"asset-{draft.id}-paper-figure-{index}"
+            existing = next((asset for asset in draft.assets if asset.id == asset_id), None)
+            if existing:
+                existing.path = item["path"]
+                existing.prompt = item["prompt"]
+                existing.insert_after = item["insert_after"]
+                continue
+            draft.assets.append(
+                DraftAsset(
+                    id=asset_id,
+                    draft_id=draft.id,
+                    kind="source_file",
+                    prompt=item["prompt"],
+                    path=item["path"],
+                    insert_after=item["insert_after"],
+                    provider="paper_pdf",
+                    created_at=now_iso(),
+                )
+            )
 
     def mark_published(self, draft_id: str) -> Draft:
         draft = self.get_draft(draft_id)
@@ -1322,16 +1521,15 @@ class DailyPipeline:
         package_dir = self.store.draft_package_dir(run_date, topic.slug)
         relative_dir = package_dir.relative_to(self.store.root)
         paper = next((item for item in papers if item.id == topic.paper_id), None)
-        ai_hotspots = sorted([signal for signal in signals if signal.kind != "paper"], key=lambda item: item.heat, reverse=True)[:5]
-        arxiv_hot_papers = sorted(papers, key=lambda item: item.replication_value, reverse=True)[:5]
+        ai_hotspots = self._article_hotspots(topic, signals, run_date)
+        arxiv_hot_papers = self._article_arxiv_papers(topic, papers, run_date)
         markdown = self._generate_article_markdown(topic, paper, evidence_items, ai_hotspots, arxiv_hot_papers, include_long_article)
         sources = build_sources_markdown(evidence_items)
         checklist = build_review_checklist()
         topic_md = build_topic_markdown(topic)
         html_output = markdown_to_wechat_html(markdown)
         evidence_json = json.dumps([item.model_dump(mode="json") for item in evidence_items], ensure_ascii=False, indent=2)
-        cover_prompt = build_cover_prompt(topic)
-        mechanism_prompt = build_mechanism_prompt(topic, paper)
+        asset_specs = visual_asset_specs(topic, paper)
 
         files = {
             "article.md": markdown,
@@ -1344,8 +1542,7 @@ class DailyPipeline:
         if include_long_article:
             files.update(
                 {
-                    "cover.prompt.txt": cover_prompt,
-                    "figures/mechanism.prompt.txt": mechanism_prompt,
+                    **{str(spec["path"]).removesuffix(".png") + ".prompt.txt": str(spec["prompt"]) for spec in asset_specs},
                 }
             )
         for name, content in files.items():
@@ -1354,37 +1551,30 @@ class DailyPipeline:
         created_at = now_iso()
         assets: List[DraftAsset] = []
         if include_long_article and include_assets:
-            cover_result = generate_image_asset(package_dir / "cover.png", cover_prompt, rgb=(20, 140, 190), storage_root=self.store.root)
-            mechanism_result = generate_image_asset(
-                package_dir / "figures" / "mechanism.png",
-                mechanism_prompt,
-                rgb=(220, 96, 58),
-                storage_root=self.store.root,
-            )
-            assets = [
-                DraftAsset(
-                    id=f"asset-{draft_id}-cover",
-                    draft_id=draft_id,
-                    kind="cover",
-                    prompt=cover_prompt,
-                    path=str(relative_dir / "cover.png"),
-                    revised_prompt=cover_result.revised_prompt,
-                    provider=cover_result.provider,
-                    provider_request_id=cover_result.provider_request_id or None,
-                    created_at=created_at,
-                ),
-                DraftAsset(
-                    id=f"asset-{draft_id}-mechanism",
-                    draft_id=draft_id,
-                    kind="mechanism",
-                    prompt=mechanism_prompt,
-                    path=str(relative_dir / "figures" / "mechanism.png"),
-                    revised_prompt=mechanism_result.revised_prompt,
-                    provider=mechanism_result.provider,
-                    provider_request_id=mechanism_result.provider_request_id or None,
-                    created_at=created_at,
-                ),
-            ]
+            for spec in asset_specs:
+                relative_path = relative_dir / str(spec["path"])
+                result = generate_image_asset(
+                    self.store.root / relative_path,
+                    str(spec["prompt"]),
+                    rgb=spec["rgb"],  # type: ignore[arg-type]
+                    storage_root=self.store.root,
+                    size=str(spec["size"]) if spec.get("size") else None,
+                )
+                asset_kwargs = {
+                    "id": f"asset-{draft_id}-{spec['stage']}",
+                    "draft_id": draft_id,
+                    "kind": spec["kind"],
+                    "prompt": str(spec["prompt"]),
+                    "path": str(relative_path),
+                    "insert_after": str(spec["insert_after"]),
+                    "revised_prompt": result.revised_prompt,
+                    "provider": result.provider,
+                    "provider_request_id": result.provider_request_id or None,
+                    "created_at": created_at,
+                }
+                if "width" in spec and "height" in spec:
+                    asset_kwargs.update({"width": int(spec["width"]), "height": int(spec["height"])})
+                assets.append(DraftAsset(**asset_kwargs))  # type: ignore[arg-type]
         return Draft(
             id=draft_id,
             topic_id=topic.id,
@@ -1411,19 +1601,23 @@ class DailyPipeline:
         ai_hotspots: List[Signal],
         arxiv_hot_papers: List[Paper],
         include_long_article: bool = True,
+        narrative_type: NarrativeType | None = None,
     ) -> str:
         self._last_generation_error = ""
         if not include_long_article:
             return build_article_markdown(topic, paper, evidence_items, ai_hotspots, arxiv_hot_papers, include_long_article=False)
         fallback = rewrite_khazix_style(build_article_markdown(topic, paper, evidence_items, ai_hotspots, arxiv_hot_papers))
         if not self.llm_provider:
-            self._last_generation_error = "LLM provider is not configured; used fallback article."
-            return fallback
+            raise RuntimeError("LLM provider is required to generate main article")
+        strategy = narrative_strategy(narrative_type)
         instructions = (
             "你是一个谨慎、有判断力的中文 AI 论文公众号作者。只能基于证据包写作，"
             "必须使用中文输出 Markdown，重点输出“主文章：长论文解读”模块。"
-            "主文章必须是专业但好读的论文深度解读，"
-            "围绕论文问题、方法贡献、实验可信度、局限和为什么近期值得读展开。"
+            f"{strategy}"
+            "主文章必须专业但好读，必须有自己的叙事主线，不要套用固定 checklist 标题。"
+            "必须覆盖研究问题、方法贡献、实验可信度、局限边界和作者判断，但这些词不必作为小标题出现。"
+            "主文章内部小标题只能使用 ###，不要使用 ####。"
+            "不要输出配图建议、image2、封面图、机制图、发布前复核清单、内部评分或后台说明。"
             "可以参考次文章素材理解上下文，但不要因为次文章格式影响主文章。"
             "避免报告腔、营销腔和夸大事实。"
         )
@@ -1431,21 +1625,20 @@ class DailyPipeline:
         try:
             result = self.llm_provider.complete(instructions, input_text)
         except Exception as error:
-            self._last_generation_error = f"LLM article generation failed; used fallback article. {type(error).__name__}: {error}"
-            return fallback
+            raise RuntimeError(f"LLM article generation failed: {type(error).__name__}: {error}") from error
         text = result.text.strip()
         main_marker = "## 主文章：长论文解读"
         main_section = extract_markdown_section(text, main_marker) if main_marker in text else ""
         fallback_main_section = extract_markdown_section(fallback, main_marker)
         if not main_section:
-            self._last_generation_error = "LLM article response missing main article marker; used fallback article."
-            return fallback
+            raise RuntimeError("LLM article response missing main article marker")
         if article_copies_fallback(main_section, fallback_main_section):
-            self._last_generation_error = "LLM article response copied local fallback template; used fallback article."
-            return fallback
+            raise RuntimeError("LLM article response copied local fallback template")
+        forbidden_reason = forbidden_main_article_reason(main_section)
+        if forbidden_reason:
+            raise RuntimeError(f"LLM article response failed main-article publishability validation: {forbidden_reason}")
         if not main_article_is_publish_ready(main_section):
-            self._last_generation_error = "LLM article response failed main-article publishability validation; used fallback article."
-            return fallback
+            raise RuntimeError("LLM article response failed main-article publishability validation")
         return main_section
 
     def _generate_secondary_module_markdown(
@@ -1469,16 +1662,22 @@ class DailyPipeline:
         try:
             result = self.llm_provider.complete(instructions, input_text)
         except Exception as error:
-            self._last_generation_error = f"LLM {module} generation failed; used fallback module. {type(error).__name__}: {error}"
-            return fallback
+            raise RuntimeError(f"LLM {module} generation failed: {type(error).__name__}: {error}") from error
         text = result.text.strip()
         section = extract_markdown_section(text, marker) if marker in text else text
         if not section or marker not in section:
-            self._last_generation_error = f"LLM {module} response missing required module marker; used fallback module."
-            return fallback
+            raise RuntimeError(f"LLM {module} response missing required module marker")
         if not secondary_module_is_publish_ready(section):
-            self._last_generation_error = f"LLM {module} response failed publishability validation; used fallback module."
-            return fallback
+            raise RuntimeError(f"LLM {module} response failed publishability validation")
+        section = enforce_secondary_source_labels(section, module, ai_hotspots, arxiv_hot_papers)
+        if module == "hotspots" and numbered_subheading_count(section) < len(ai_hotspots):
+            raise RuntimeError("LLM hotspots response missed numbered hotspot headings")
+        if module == "arxiv" and numbered_subheading_count(section) < len(arxiv_hot_papers):
+            raise RuntimeError("LLM arxiv response missed numbered arxiv headings")
+        if module == "hotspots" and section.count("文章来源：") < len(ai_hotspots):
+            raise RuntimeError("LLM hotspots response missed source labels")
+        if module == "arxiv" and (section.count("原文标题：") < len(arxiv_hot_papers) or section.count("文章来源：") < len(arxiv_hot_papers)):
+            raise RuntimeError("LLM arxiv response missed title or source labels")
         return section
 
     def _rewrite_style(self, markdown: str, topic: Topic, reason: str = "") -> str:
@@ -1613,6 +1812,12 @@ def publishable_method_summary_for_paper(paper: Paper) -> str:
     return f"从摘要看，它适合按{focus}来读；发布前需要补读 PDF，确认方法结构、实验设置和指标口径。"
 
 
+def publishable_experiment_summary_for_paper(paper: Paper) -> str:
+    if is_publishable_chinese_text(paper.experiment_summary):
+        return paper.experiment_summary.strip()
+    return "需要进一步阅读论文实验章节后确认对照方法、指标口径和结论边界。"
+
+
 def publishable_experiment_summary(topic: Topic, paper: Paper | None) -> str:
     if paper and is_publishable_chinese_text(paper.experiment_summary):
         return paper.experiment_summary.strip()
@@ -1661,7 +1866,7 @@ def build_article_markdown(
 
 当前已选择：**{topic.title}**。
 
-点击“生成长文”后，系统会围绕这篇论文生成中文深度解读，并调用 image2 生成封面图和机制图。
+点击“生成长文”后，系统会围绕这篇论文生成中文深度解读，并另行准备发布素材。
 
 ## 次文章 1：AI 热点
 
@@ -1717,11 +1922,7 @@ def build_article_markdown(
 
 代码不是热度本身，只是判断论文可信度的辅助信号。有代码时，优先看它是否覆盖核心实验、是否能重跑主要结果、是否说明数据和硬件环境；没有代码时，文章里就要把结论写得更克制。
 
-### 7. 配图建议
-
-封面图应该突出这篇论文的核心研究对象，而不是做抽象科技背景。机制图应该把“问题输入、方法核心、实验验证”画成三段，让读者一眼知道论文在解决什么、方法如何工作、证据来自哪里。
-
-### 8. 我的判断
+### 7. 我的判断
 
 {paper_title} 值得读的前提，不是它标题够热，而是它是否让一个 AI 研究问题变得更可讨论。我的判断是，这篇论文适合按下面几个线索继续追：
 
@@ -1756,7 +1957,7 @@ def build_hotspot_publish_article(ai_hotspots: List[Signal]) -> str:
     primary = ai_hotspots[0]
     supporting = ai_hotspots[1:4]
     supporting_text = "\n\n".join(
-        f"再看 {signal.title}。{signal.summary} 这条消息适合放在一起读，因为它补的是 AI 行业变化里的另一个侧面：工具、模型、产品和开发者生态正在怎样移动。来源，{signal.url}"
+        f"再看 {signal.title}。{signal.summary} 这条消息适合放在一起读，因为它补的是 AI 行业变化里的另一个侧面：工具、模型、产品和开发者生态正在怎样移动。文章来源：{signal.url}"
         for signal in supporting
     )
     if not supporting_text:
@@ -1771,7 +1972,7 @@ def build_hotspot_publish_article(ai_hotspots: List[Signal]) -> str:
 
 我觉得它值得关注，不是因为标题听起来热，而是因为它能帮助我们判断：模型能力、工具链、产品形态或开发者生态正在往哪个方向移动。
 
-来源，{primary.url}
+文章来源：{primary.url}
 
 {supporting_text}
 
@@ -1791,34 +1992,16 @@ def build_arxiv_publish_article(arxiv_hot_papers: List[Paper]) -> str:
 
 等补到明确论文、编号、链接和方法摘要以后，再给读者一个真正能顺着读下去的入口。
 """
-    primary = arxiv_hot_papers[0]
-    secondary = arxiv_hot_papers[1:3]
-    secondary_text = "\n\n".join(
-        f"还有一篇可以顺手放进待读列表，{paper.title}，arXiv:{paper.arxiv_id}。{publishable_method_summary_for_paper(paper)} 它适合已经熟悉相关方向的读者先读，重点看它的实验设置和验证价值，当前学术价值参考分是 {paper.replication_value}/100。链接，{paper.pdf_url}"
-        for paper in secondary
+    return "\n\n".join(
+        f"### {index}. {paper.title}\n\n"
+        f"原文标题：{paper.title}\n\n"
+        f"arXiv:{paper.arxiv_id}。{publishable_method_summary_for_paper(paper)} "
+        f"实验和验证部分建议重点看：{publishable_experiment_summary_for_paper(paper)} "
+        f"这篇适合关注 {', '.join(paper.categories) or 'AI 研究进展'} 的读者。"
+        f"后续是否值得展开成长论文解读，取决于方法细节和实验边界是否足够扎实。\n\n"
+        f"文章来源：{paper.pdf_url}"
+        for index, paper in enumerate(arxiv_hot_papers, start=1)
     )
-    if not secondary_text:
-        secondary_text = "如果今天只读一篇，那就先读上面这一篇。不要贪多，先把问题、方法和实验设计看明白。"
-    return f"""### 今天这组论文，我建议先按学术价值来读
-
-今天这组论文，我建议先按学术价值来读。
-
-也就是说，先别急着问它是不是今天刚发，也别只看标题有没有大词。
-
-先看它能不能把一个 AI 研究问题讲清楚。
-
-第一篇是 {primary.title}，arXiv:{primary.arxiv_id}。{publishable_method_summary_for_paper(primary)}
-
-这篇适合已经熟悉相关方向的读者先读。读的时候不要只看结论，重点看它怎么设置问题、怎么安排对照方法、实验是否能支撑核心判断。它当前的学术价值参考分是 {primary.replication_value}/100。
-
-链接，{primary.pdf_url}
-
-{secondary_text}
-
-我的建议是，次文章的 arXiv 速报不要写成论文目录。
-
-读者真正需要的，是知道哪篇值得先读，为什么值得读，以及它有没有机会继续展开成论文深度解读。
-"""
 
 
 def build_llm_article_input(
@@ -1836,7 +2019,7 @@ def build_llm_article_input(
     hotspots = "\n".join(f"- {signal.kind} | {signal.title}: {signal.summary} URL: {signal.url}" for signal in ai_hotspots[:5])
     arxiv = "\n".join(
         f"- {item.title} | arXiv:{item.arxiv_id} | {item.method_summary} | replication:{item.replication_value} | {item.pdf_url}"
-        for item in arxiv_hot_papers[:5]
+        for item in arxiv_hot_papers
     )
     paper_profile = "无结构化论文档案"
     if paper:
@@ -1876,7 +2059,8 @@ def build_llm_article_input(
 - 主文章必须围绕论文问题、方法贡献、实验可信度、局限和近期为什么值得读展开。
 - 次文章 1 每条热点要有一句判断，GitHub 项目只能作为热点或论文辅助证据。
 - 次文章 2 每篇论文要说明方向、核心贡献、实验亮点、适合谁读，是否值得后续展开成长论文解读。
-- 主文章必须包含“配图建议”，说明 image2 封面图和机制图的用途。
+- 主文章不得包含“配图建议”、image2、封面图、机制图、发布前复核清单、内部评分或后台说明。
+- 主文章内部小标题只能使用“### ”，不得使用“#### ”。
 
 本地 fallback 草稿，可参考结构但不要照抄:
 {fallback}
@@ -1892,25 +2076,35 @@ def build_llm_secondary_module_input(
 ) -> str:
     if module == "hotspots":
         material = "\n".join(
-            f"- {signal.kind} | {signal.title}: {signal.summary} URL: {signal.url}"
-            for signal in ai_hotspots[:8]
+            f"{index}. {signal.kind} | {signal.title}: {signal.summary} URL: {signal.url}"
+            for index, signal in enumerate(ai_hotspots, start=1)
         )
+        count = len(ai_hotspots)
         requirements = (
             "- 输出模块标题必须是“## 次文章 1：AI 热点”。\n"
-            "- 从热点素材中挑 3-5 条写成短文章，每条都要说明为什么值得关注。\n"
+            f"- 输出 {count} 条，逐条覆盖全部热点素材，不要合并、跳过或筛掉。\n"
+            "- 每条必须用独立三级小标题，格式为“### 1. 中文小标题”“### 2. 中文小标题”。\n"
+            "- 每条必须包含一行“文章来源：URL”，URL 必须逐字复制素材里的 URL，不得替换成其他网址。\n"
+            "- 每条都要说明为什么值得关注，写具体判断，避免“值得关注/行业信号/正在变化”这类模板空话。\n"
             "- GitHub 项目只能作为热点或工具生态信号，不要写成论文深度解读。"
         )
+        fallback_block = ""
     else:
         material = "\n".join(
-            f"- {paper.title} | arXiv:{paper.arxiv_id} | {paper.method_summary} | "
+            f"{index}. {paper.title} | arXiv:{paper.arxiv_id} | {paper.method_summary} | "
             f"replication:{paper.replication_value} | {paper.pdf_url}"
-            for paper in arxiv_hot_papers[:8]
+            for index, paper in enumerate(arxiv_hot_papers, start=1)
         )
+        count = len(arxiv_hot_papers)
         requirements = (
             "- 输出模块标题必须是“## 次文章 2：arXiv 高热度文章速报”。\n"
-            "- 从论文素材中挑 3-5 篇写成速报，说明方向、贡献、实验亮点、适合谁读。\n"
-            "- 必须说明哪些论文值得后续展开成深度解读。"
+            f"- 输出 {count} 篇，逐篇覆盖全部 arXiv 论文素材，不要合并、跳过或筛掉。\n"
+            "- 每篇必须用独立三级小标题，格式为“### 1. 中文小标题”“### 2. 中文小标题”。\n"
+            "- 每篇必须包含“原文标题：英文或原始标题”和“文章来源：URL”，标题和 URL 必须逐字复制素材内容。\n"
+            "- 每篇都要说明方向、贡献、实验亮点、适合谁读，以及是否值得后续展开成深度解读。\n"
+            "- 避免“今天这组论文，我建议”“可以顺手放进待读列表”这类固定模板句。"
         )
+        fallback_block = ""
     return f"""当前主选题:
 {topic.title}
 
@@ -1922,10 +2116,35 @@ def build_llm_secondary_module_input(
 - 必须包含一个“### ”小标题。
 - 不要输出 bullet list 素材清单，要写成自然段。
 - 不要输出主文章、另一个次文章或来源清单。
-
-本地 fallback 模块，可参考结构但不要照抄:
-{fallback}
+{fallback_block}
 """
+
+
+def numbered_subheading_count(markdown: str) -> int:
+    return len(re.findall(r"(?m)^###\s+\d+[.、]", markdown))
+
+
+def enforce_secondary_source_labels(markdown: str, module: Literal["hotspots", "arxiv"], ai_hotspots: List[Signal], arxiv_hot_papers: List[Paper]) -> str:
+    sources = [signal.url for signal in ai_hotspots] if module == "hotspots" else [paper.pdf_url for paper in arxiv_hot_papers]
+    titles = [] if module == "hotspots" else [paper.title for paper in arxiv_hot_papers]
+    sections = list(re.finditer(r"(?m)^###\s+\d+[.、].*(?:\n(?!###\s+\d+[.、]).*)*", markdown))
+    if len(sections) < len(sources):
+        return markdown
+    result = markdown
+    for index in range(len(sources) - 1, -1, -1):
+        match = sections[index]
+        block = match.group(0)
+        if module == "arxiv":
+            if re.search(r"(?m)^原文标题：", block):
+                block = re.sub(r"(?m)^原文标题：.*$", f"原文标题：{titles[index]}", block, count=1)
+            else:
+                block = block.replace("\n", f"\n\n原文标题：{titles[index]}\n", 1)
+        if re.search(r"(?m)^文章来源：", block):
+            block = re.sub(r"(?m)^文章来源：.*$", f"文章来源：{sources[index]}", block, count=1)
+        else:
+            block = f"{block.rstrip()}\n\n文章来源：{sources[index]}"
+        result = result[: match.start()] + block + result[match.end() :]
+    return result
 
 
 def replace_article_module(existing_markdown: str, generated_markdown: str, module: RefreshModule) -> str:
@@ -2052,11 +2271,12 @@ def secondary_articles_are_publish_ready(markdown: str) -> bool:
 
 def secondary_module_is_publish_ready(section: str) -> bool:
     lines = [line.strip() for line in section.splitlines() if line.strip()]
-    if len(lines) < 8:
-        return False
     if not any(line.startswith("### ") for line in lines):
         return False
     if any(line.startswith("- ") for line in lines):
+        return False
+    chinese_count = sum(1 for char in section if "\u4e00" <= char <= "\u9fff")
+    if chinese_count < 120:
         return False
     return True
 
@@ -2073,7 +2293,9 @@ def article_main_is_chinese(markdown: str) -> bool:
 def main_article_is_publish_ready(markdown: str) -> bool:
     if not article_main_is_chinese(markdown):
         return False
-    return all(keyword in markdown for keyword in ("方法", "实验", "局限"))
+    if markdown.count("\n### ") < 2 and not markdown.lstrip().startswith("### "):
+        return False
+    return True
 
 
 def article_copies_fallback(markdown: str, fallback: str) -> bool:
@@ -2092,6 +2314,12 @@ def strip_refresh_notes(markdown: str) -> str:
 
 def join_generation_errors(*errors: str) -> str:
     return "\n".join(error.strip() for error in errors if error and error.strip())
+
+
+def clear_resolved_secondary_module_error(error: str, module: Literal["hotspots", "arxiv"]) -> str:
+    if error.startswith(f"LLM {module} "):
+        return ""
+    return error
 
 
 def build_sources_markdown(evidence_items: List[EvidenceItem]) -> str:
@@ -2236,21 +2464,149 @@ Evidence risk: {topic.evidence_risk}
 
 
 def build_cover_prompt(topic: Topic) -> str:
+    concept = topic.angle or topic.business_hook or topic.recommendation or topic.title
     return (
-        "Premium WeChat cover image, midnight research cockpit, precise sky-blue radar light, "
-        f"clear visual metaphor for: {topic.title}. No cheap purple gradient, no unreadable text, subject must be inspectable."
+        "手绘涂鸦风微信公众号封面，白底手账草图，黑色签字笔线稿，少量蓝色和橙色马克笔涂抹。"
+        "画面比例必须是 2.35:1 横版封面。"
+        "单一主视觉：一个中文标注的核心概念图，不要画复杂流程图，不要多块面板，不要密集箭头。"
+        "只允许中文可见文字，不要出现英文、拼音、乱码或伪文字。"
+        "如果需要文字，只写这些中文短词：语言防火墙、智能体、放行、拦截、边界。"
+        "画面要让普通读者一眼看懂：一群智能体请求经过一扇写着“语言防火墙”的门，"
+        "蓝色路径表示放行，橙色路径表示拦截。不要 3D，不要赛博霓虹，不要科技感 cockpit。"
+        f"中文主题说明：{concept}"
     )
 
 
 def build_mechanism_prompt(topic: Topic, paper: Paper | None) -> str:
     method = paper.method_summary if paper else topic.angle
     return (
-        "Clean technical editorial illustration for a WeChat long-form article, dark research cockpit style. "
-        "Create a visual mechanism map with no readable text: three distinct stages shown as icons or panels "
-        "(planner, reviewer, executor), all connected to a shared evidence board before an experiment proposal. "
-        "Use structured arrows, inspectable objects, precise sky-blue highlights, and avoid tiny text labels. "
-        f"Concept to visualize: {method}"
+        "手绘涂鸦风机制图，白底，粗细不一的黑色线稿，马克笔箭头和便签块，像论文阅读笔记。"
+        "用可看懂的图标和流程块表达方法，不要 3D，不要赛博霓虹，不要深色科技背景，不要可读小字。"
+        f"要解释的机制：{method}"
     )
+
+
+def visual_asset_specs(topic: Topic, paper: Paper | None, article_markdown: str = "") -> List[Dict[str, object]]:
+    return [
+        {
+            "stage": "cover",
+            "kind": "cover",
+            "path": "cover.png",
+            "insert_after": "# 今日 AI 论文与热点文章包",
+            "rgb": (40, 130, 190),
+            "size": "1504x640",
+            "width": 1504,
+            "height": 640,
+            "prompt": build_cover_prompt(topic),
+        },
+        {
+            "stage": "mechanism",
+            "kind": "mechanism",
+            "path": "figures/mechanism-overview.png",
+            "insert_after": "### 方法贡献",
+            "rgb": (220, 96, 58),
+            "prompt": f"{build_mechanism_prompt(topic, paper)}\n重点：机制总览，把核心模块、信息流和输出关系画清楚。",
+        },
+    ] + article_illustration_specs(article_markdown or topic.recommendation)
+
+
+def article_illustration_specs(article_markdown: str, limit: int = 5) -> List[Dict[str, object]]:
+    sections = article_h3_sections(article_markdown)
+    colors = [(76, 150, 96), (40, 130, 190), (220, 96, 58), (185, 120, 42), (120, 95, 180)]
+    specs: List[Dict[str, object]] = []
+    for index, (title, body) in enumerate(sections[:limit], start=1):
+        stage = f"article-illustration-{index}"
+        explanation = compact_section_summary(body)
+        specs.append(
+            {
+                "stage": stage,
+                "kind": "inline_illustration",
+                "path": f"figures/{stage}.png",
+                "insert_after": f"### {title}",
+                "rgb": colors[(index - 1) % len(colors)],
+                "prompt": (
+                    f"手绘涂鸦风中文释义图，白底，黑色线稿，少量马克笔强调。主题：{title}。"
+                    f"请把这一段难点画给非专业读者看：{explanation}"
+                    "画面必须包含清晰中文标签，只允许中文可见文字，不要英文、拼音、乱码、问号占位或待填写内容。"
+                    "不要画通用模板，不要画空白表格，不要画路牌隐喻，必须直接解释文章里的具体概念。"
+                ),
+            }
+        )
+    return specs
+
+
+def article_h3_sections(markdown: str) -> List[tuple[str, str]]:
+    sections: List[tuple[str, str]] = []
+    current_title = ""
+    current_lines: List[str] = []
+    for raw_line in markdown.splitlines():
+        line = raw_line.strip()
+        if line.startswith("### "):
+            if current_title:
+                sections.append((current_title, "\n".join(current_lines).strip()))
+            current_title = line[4:].strip()
+            current_lines = []
+        elif current_title:
+            current_lines.append(line)
+    if current_title:
+        sections.append((current_title, "\n".join(current_lines).strip()))
+    return [
+        (title, body)
+        for title, body in sections
+        if body and title not in {"待生成", "长文刷新札记", "重跑编辑札记", "风格重跑札记"}
+    ]
+
+
+def compact_section_summary(body: str, max_chars: int = 140) -> str:
+    text = re.sub(r"\s+", " ", re.sub(r"[*_`>#-]", "", body)).strip()
+    return text[:max_chars].rstrip() or "用一张概念图解释本节的核心判断、证据关系和边界。"
+
+
+def is_legacy_fixed_inline_asset(asset: DraftAsset) -> bool:
+    if asset.kind != "inline_illustration":
+        return False
+    marker = f"{asset.id} {asset.path}".lower()
+    return "experiment-flow" in marker or "limitation-map" in marker
+
+
+def extract_paper_figures(
+    paper: Paper,
+    output_dir: Path,
+    relative_dir: Path,
+    http_client: httpx.Client,
+    limit: int = 1,
+) -> List[Dict[str, str]]:
+    if not shutil.which("pdftoppm"):
+        raise RuntimeError("未找到 pdftoppm，无法截取论文原图")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = output_dir / "paper.pdf"
+    try:
+        response = http_client.get(paper.pdf_url)
+        response.raise_for_status()
+    except httpx.HTTPError as error:
+        raise RuntimeError(f"论文 PDF 下载失败：{error}") from error
+    pdf_path.write_bytes(response.content)
+    prefix = output_dir / "paper-figure"
+    try:
+        subprocess.run(
+            ["pdftoppm", "-png", "-f", "1", "-l", str(limit), "-singlefile", str(pdf_path), str(prefix)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError) as error:
+        raise RuntimeError(f"论文 PDF 截图失败：{error}") from error
+    image_path = output_dir / "paper-figure.png"
+    if not image_path.exists():
+        raise RuntimeError("论文 PDF 截图没有产出图片")
+    return [
+        {
+            "path": str(relative_dir / "paper-figure.png"),
+            "insert_after": "### 方法贡献",
+            "prompt": f"论文原图截图：{paper.title} PDF 第 1 页，发布前人工裁剪到最关键图表。",
+        }
+    ]
 
 
 def markdown_to_wechat_html(markdown: str) -> str:
@@ -2453,6 +2809,12 @@ def _score_detail_for_topic_pack(score: PaperScore) -> Dict[str, object]:
         "matched_people": score.matched_people,
         "matched_source_domains": score.matched_source_domains,
         "matched_signals": score.matched_signals,
+        "recommended_narrative": recommend_narrative(
+            title=score.paper.title,
+            abstract=score.paper.abstract,
+            categories=score.paper.categories,
+            method_summary=score.paper.method_summary,
+        ),
     }
 
 
@@ -2479,10 +2841,12 @@ def extract_arxiv_id(url: str) -> str | None:
     return token or None
 
 
-def generate_image_asset(path: Path, prompt: str, rgb: tuple[int, int, int], storage_root: Path | None = None):
+def generate_image_asset(path: Path, prompt: str, rgb: tuple[int, int, int], storage_root: Path | None = None, size: str | None = None):
     provider = Image2Provider.from_env(storage_root)
     if provider:
         try:
+            if size:
+                return provider.generate(prompt, path, size=size)
             return provider.generate(prompt, path)
         except Exception as error:
             raise RuntimeError(f"Image2 generation failed: {error}") from error

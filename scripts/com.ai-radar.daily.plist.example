@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ai-radar.daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/absolute/path/to/auto-wechat-subscritpion/scripts/run-ai-radar-daily.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>11</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/absolute/path/to/auto-wechat-subscritpion</string>
+  <key>StandardOutPath</key>
+  <string>/absolute/path/to/auto-wechat-subscritpion/storage/logs/launchd-ai-radar.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/absolute/path/to/auto-wechat-subscritpion/storage/logs/launchd-ai-radar.err.log</string>
+</dict>
+</plist>

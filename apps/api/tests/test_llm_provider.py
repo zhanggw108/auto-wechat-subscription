@@ -1,4 +1,5 @@
 import httpx
+import pytest
 
 from ai_radar.llm_provider import ResponsesLLMProvider
 from ai_radar.pipeline import DailyPipeline
@@ -38,10 +39,20 @@ PUBLISH_READY_SECONDARY_SECTIONS = (
 def llm_article(main_body: str) -> str:
     return (
         "# 今日 AI 论文与热点文章包\n\n"
-        f"## 主文章：长论文解读\n\n{main_body}\n\n"
+        "## 主文章：长论文解读\n\n"
+        "### 这篇论文为什么值得读\n\n"
+        f"{main_body}\n\n"
+        "### 方法和实验边界\n\n"
+        f"{main_body}\n\n"
         f"{PUBLISH_READY_SECONDARY_SECTIONS}"
         "## 来源清单\n\n- source"
     )
+
+
+PUBLISH_READY_MAIN_BODY = (
+    "这篇中文主文章会围绕论文问题、方法贡献、实验可信度和局限边界展开。"
+    "它不是素材清单，而是解释为什么这个选题值得读，以及读者应该如何判断结论。"
+)
 
 
 def test_responses_llm_provider_posts_compatible_request_and_reads_output_text():
@@ -77,7 +88,6 @@ def test_deepseek_llm_provider_posts_chat_completions_and_reads_message_content(
         assert '"content":"Write like a careful editor."' in payload
         assert '"role":"user"' in payload
         assert '"content":"Draft evidence pack"' in payload
-        assert '"response_format":{"type":"json_object"}' in payload
         return httpx.Response(
             200,
             json={"id": "chatcmpl-1", "choices": [{"message": {"content": "DeepSeek article body"}}]},
@@ -95,6 +105,50 @@ def test_deepseek_llm_provider_posts_chat_completions_and_reads_message_content(
 
     assert result.text == "DeepSeek article body"
     assert result.response_id == "chatcmpl-1"
+
+
+def test_deepseek_llm_provider_does_not_force_json_for_markdown_requests():
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert '"response_format"' not in payload
+        return httpx.Response(
+            200,
+            json={"id": "chatcmpl-markdown", "choices": [{"message": {"content": "## 主文章：长论文解读\n\n中文正文"}}]},
+        )
+
+    provider = ResponsesLLMProvider(
+        provider="deepseek",
+        base_url="https://api.deepseek.com",
+        api_key="test-key",
+        model="deepseek-v4-pro",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = provider.complete("请输出中文 Markdown。", "写一篇主文章。")
+
+    assert "主文章" in result.text
+
+
+def test_deepseek_llm_provider_forces_json_for_json_requests():
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert '"response_format":{"type":"json_object"}' in payload
+        return httpx.Response(
+            200,
+            json={"id": "chatcmpl-json", "choices": [{"message": {"content": "{\"ok\": true}"}}]},
+        )
+
+    provider = ResponsesLLMProvider(
+        provider="deepseek",
+        base_url="https://api.deepseek.com",
+        api_key="test-key",
+        model="deepseek-v4-pro",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = provider.complete("必须返回 JSON。", "请返回对象。")
+
+    assert result.text == "{\"ok\": true}"
 
 
 def test_responses_llm_provider_from_env_uses_generation_timeout_by_default(monkeypatch):
@@ -220,11 +274,14 @@ def test_pipeline_rejects_llm_article_when_main_body_is_not_chinese(tmp_path, mo
     pipeline = DailyPipeline(JsonStore(tmp_path), llm_provider=EnglishLLM())
     pipeline.run_daily("2026-06-20")
     draft = pipeline.draft_topic("topic-long-context-rag", date="2026-06-20")
-    draft = pipeline.refresh_module(draft.id, "main", "generate selected long article")
+    before = (tmp_path / draft.markdown_path).read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="publishability validation"):
+        pipeline.refresh_module(draft.id, "main", "generate selected long article")
 
     article = (tmp_path / draft.markdown_path).read_text(encoding="utf-8")
     assert "This article explains the selected paper in English" not in article
-    assert "这篇论文到底想解决什么问题" in article
+    assert article == before
 
 
 def test_pipeline_uses_injected_llm_for_style_rerun(tmp_path, monkeypatch):
@@ -239,16 +296,16 @@ def test_pipeline_uses_injected_llm_for_style_rerun(tmp_path, monkeypatch):
                 return type(
                     "Result",
                     (),
-                    {
-                        "text": llm_article("正文"),
-                        "response_id": "draft",
-                    },
-                )()
+                {
+                    "text": llm_article(PUBLISH_READY_MAIN_BODY),
+                    "response_id": "draft",
+                },
+            )()
             return type(
                 "Result",
                 (),
                 {
-                    "text": llm_article("更像真人的表达"),
+                    "text": llm_article(f"更像真人的表达。{PUBLISH_READY_MAIN_BODY}"),
                     "response_id": "style",
                 },
             )()
@@ -280,7 +337,7 @@ def test_pipeline_rejects_style_rerun_that_drops_three_module_structure(tmp_path
                     "Result",
                     (),
                     {
-                        "text": llm_article("初稿"),
+                        "text": llm_article(PUBLISH_READY_MAIN_BODY),
                         "response_id": "draft",
                     },
                 )()

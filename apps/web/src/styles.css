@@ -585,6 +585,26 @@ a:focus-visible {
   color: var(--muted);
 }
 
+.topic-pack-item__narrative {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid oklch(0.72 0.12 165 / 0.25);
+  border-radius: 8px;
+  background: oklch(0.16 0.026 175 / 0.62);
+}
+
+.topic-pack-item__narrative strong {
+  font-size: 13px;
+}
+
+.topic-pack-item__narrative span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .topic-pack-item__sources {
   display: grid;
   gap: 4px;
@@ -832,6 +852,26 @@ meter {
 .module-refresh-row button:disabled {
   cursor: not-allowed;
   opacity: 0.68;
+}
+
+.narrative-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.narrative-picker span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.narrative-picker select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: oklch(0.105 0.009 220);
+  color: var(--text);
+  padding: 0 10px;
 }
 
 .pane-title {
